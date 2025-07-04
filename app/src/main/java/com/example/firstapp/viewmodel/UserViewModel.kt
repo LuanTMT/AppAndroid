@@ -5,6 +5,8 @@ import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
+import com.example.firstapp.data.User
+import com.example.firstapp.network.ApiClient
 
 class UserViewModel : ViewModel() {
     private val _users = MutableStateFlow<List<User>>(emptyList())
