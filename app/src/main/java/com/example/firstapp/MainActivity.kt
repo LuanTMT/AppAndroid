@@ -7,7 +7,6 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
 import com.example.firstapp.ui.theme.FirstAPPTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
@@ -18,9 +17,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.firstapp.data.User
 import com.example.firstapp.viewmodel.UserViewModel
 
 @Composable
@@ -33,6 +30,7 @@ fun AppNavigator() {
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun UserListScreen(viewModel: UserViewModel = viewModel()) {
     val users by viewModel.users.collectAsState()
