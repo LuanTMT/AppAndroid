@@ -17,7 +17,9 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.example.firstapp.data.User
 import com.example.firstapp.viewmodel.UserViewModel
 
 @Composable
