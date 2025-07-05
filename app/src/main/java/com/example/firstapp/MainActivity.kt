@@ -15,19 +15,61 @@ import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.navigation.compose.currentBackStackEntryAsState
 
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.firstapp.data.User
 import com.example.firstapp.viewmodel.UserViewModel
+import com.example.firstapp.ui.AttendanceScreen
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppNavigator() {
     val navController = rememberNavController()
-    NavHost(navController = navController, startDestination = "userList") {
-        composable("userList") {
-            UserListScreen()
+    val currentBackStackEntry by navController.currentBackStackEntryAsState()
+    val currentRoute = currentBackStackEntry?.destination?.route
+
+    Scaffold(
+        bottomBar = {
+            NavigationBar {
+                NavigationBarItem(
+                    icon = { Text("Danh sách") },
+                    label = { Text("Users") },
+                    selected = currentRoute == "userList",
+                    onClick = {
+                        navController.navigate("userList") {
+                            popUpTo(navController.graph.startDestinationId)
+                            launchSingleTop = true
+                        }
+                    }
+                )
+                NavigationBarItem(
+                    icon = { Text("Chấm công") },
+                    label = { Text("Attendance") },
+                    selected = currentRoute == "attendance",
+                    onClick = {
+                        navController.navigate("attendance") {
+                            popUpTo(navController.graph.startDestinationId)
+                            launchSingleTop = true
+                        }
+                    }
+                )
+            }
+        }
+    ) { padding ->
+        NavHost(
+            navController = navController, 
+            startDestination = "userList",
+            modifier = Modifier.padding(padding)
+        ) {
+            composable("userList") {
+                UserListScreen()
+            }
+            composable("attendance") {
+                AttendanceScreen()
+            }
         }
     }
 }
