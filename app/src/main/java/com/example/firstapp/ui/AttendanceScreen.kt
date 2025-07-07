@@ -48,6 +48,10 @@ fun AttendanceScreen(
     var showCamera by remember { mutableStateOf(false) }
     var currentAttendanceType by remember { mutableStateOf<AttendanceType?>(null) }
 
+    val yellowPrimary = MaterialTheme.colorScheme.primary
+    val yellowLight = MaterialTheme.colorScheme.background
+    val yellowDark = MaterialTheme.colorScheme.onPrimary
+
     // Permission launcher
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -95,11 +99,9 @@ fun AttendanceScreen(
     }
 
     if (showCamera) {
-        // Camera Screen
         CameraScreen(
             onImageCaptured = { path ->
                 viewModel.updateImagePath(path)
-                // Submit attendance after capturing image
                 when (currentAttendanceType) {
                     AttendanceType.CHECK_IN -> viewModel.checkIn(context)
                     AttendanceType.CHECK_OUT -> viewModel.checkOut(context)
@@ -112,52 +114,67 @@ fun AttendanceScreen(
             }
         )
     } else {
-        // Main Attendance Screen
         Scaffold(
             topBar = {
                 TopAppBar(
-                    title = { Text("Chấm Công") },
+                    title = {
+                        Text(
+                            "Chấm Công",
+                            style = MaterialTheme.typography.titleLarge,
+                            modifier = Modifier.fillMaxWidth(),
+                            color = yellowDark
+                        )
+                    },
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                        containerColor = yellowPrimary
                     )
                 )
-            }
+            },
+            containerColor = yellowLight
         ) { padding ->
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(padding)
                     .padding(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
             ) {
                 // Location Info Card
                 Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 8.dp),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
+                    colors = CardDefaults.cardColors(containerColor = yellowPrimary)
                 ) {
                     Column(
-                        modifier = Modifier.padding(16.dp)
+                        modifier = Modifier
+                            .padding(24.dp)
+                            .fillMaxWidth(),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
                             text = "📍 Vị trí hiện tại:",
-                            style = MaterialTheme.typography.titleMedium
+                            style = MaterialTheme.typography.titleMedium,
+                            color = yellowDark
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                         currentLocation?.let { location ->
-                            Text("Latitude: ${location.latitude}")
-                            Text("Longitude: ${location.longitude}")
-                            Text("Độ chính xác: ${location.accuracy}m")
-                        } ?: Text("Đang lấy vị trí...")
-
+                            Text("Latitude: ${location.latitude}", color = yellowDark)
+                            Text("Longitude: ${location.longitude}", color = yellowDark)
+                            Text("Độ chính xác: ${location.accuracy}m", color = yellowDark)
+                        } ?: Text("Đang lấy vị trí...", color = yellowDark)
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = "⏰ ${SimpleDateFormat("HH:mm:ss dd/MM/yyyy", Locale.getDefault()).format(Date())}",
-                            style = MaterialTheme.typography.bodyMedium
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = yellowDark
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(32.dp))
 
                 // Action Buttons
                 Column(
@@ -170,21 +187,24 @@ fun AttendanceScreen(
                             showCamera = true
                         },
                         modifier = Modifier
-                            .fillMaxWidth()
+                            .fillMaxWidth(0.8f)
                             .height(56.dp),
                         enabled = attendanceState !is AttendanceState.Loading && currentLocation != null,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.primary
+                            containerColor = yellowPrimary,
+                            contentColor = yellowDark
                         ),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(16.dp)
                     ) {
                         Text(
                             text = "📷 Chấm Công Vào",
-                            style = MaterialTheme.typography.titleMedium
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.fillMaxWidth(),
+                            color = yellowDark
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(20.dp))
 
                     Button(
                         onClick = {
@@ -192,41 +212,51 @@ fun AttendanceScreen(
                             showCamera = true
                         },
                         modifier = Modifier
-                            .fillMaxWidth()
+                            .fillMaxWidth(0.8f)
                             .height(56.dp),
                         enabled = attendanceState !is AttendanceState.Loading && currentLocation != null,
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = MaterialTheme.colorScheme.secondary
+                            containerColor = yellowPrimary,
+                            contentColor = yellowDark
                         ),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(16.dp)
                     ) {
                         Text(
                             text = "📷 Chấm Công Ra",
-                            style = MaterialTheme.typography.titleMedium
+                            style = MaterialTheme.typography.titleMedium,
+                            modifier = Modifier.fillMaxWidth(),
+                            color = yellowDark
                         )
                     }
                 }
 
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(32.dp))
 
                 // Status
                 when (val state = attendanceState) {
                     is AttendanceState.Loading -> {
-                        CircularProgressIndicator()
-                        Text("Đang xử lý...")
+                        CircularProgressIndicator(color = yellowPrimary)
+                        Text(
+                            "Đang xử lý...",
+                            color = yellowDark,
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
                     }
                     is AttendanceState.Success -> {
                         Text(
                             text = state.message,
-                            color = MaterialTheme.colorScheme.primary,
-                            style = MaterialTheme.typography.bodyLarge
+                            color = yellowDark,
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.fillMaxWidth(),
                         )
                     }
                     is AttendanceState.Error -> {
                         Text(
                             text = state.message,
                             color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodyLarge
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.fillMaxWidth(),
                         )
                     }
                     else -> {}
@@ -245,26 +275,37 @@ fun CameraScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     var imageCapture: ImageCapture? by remember { mutableStateOf(null) }
+    val yellowPrimary = MaterialTheme.colorScheme.primary
+    val yellowDark = MaterialTheme.colorScheme.onPrimary
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Chụp ảnh chấm công") },
+                title = {
+                    Text(
+                        "Chụp ảnh chấm công",
+                        style = MaterialTheme.typography.titleLarge,
+                        modifier = Modifier.fillMaxWidth(),
+                        color = yellowDark
+                    )
+                },
                 navigationIcon = {
                     IconButton(onClick = onCancel) {
-                        Text("❌")
+                        Text("❌", color = yellowDark)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
+                    containerColor = yellowPrimary
                 )
             )
-        }
+        },
+        containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
+                .padding(padding),
+            contentAlignment = Alignment.Center
         ) {
             // Camera Preview
             AndroidView(
@@ -324,7 +365,6 @@ fun CameraScreen(
                                     }
 
                                     override fun onError(exception: ImageCaptureException) {
-                                        // Handle error - you can show a toast or log the error
                                         exception.printStackTrace()
                                     }
                                 }
@@ -335,10 +375,11 @@ fun CameraScreen(
                         .size(80.dp),
                     shape = RoundedCornerShape(40.dp),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary
+                        containerColor = yellowPrimary,
+                        contentColor = yellowDark
                     )
                 ) {
-                    Text("📸", style = MaterialTheme.typography.titleLarge)
+                    Text("📸", style = MaterialTheme.typography.titleLarge, color = yellowDark)
                 }
             }
         }
