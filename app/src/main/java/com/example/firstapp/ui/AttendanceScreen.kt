@@ -2,7 +2,6 @@ package com.example.firstapp.ui
 
 import android.Manifest
 import android.content.pm.PackageManager
-import android.location.Location
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.camera.core.CameraSelector
@@ -17,6 +16,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.unit.dp
@@ -30,9 +30,8 @@ import com.google.android.gms.location.LocationServices
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.*
-import java.util.concurrent.Executor
-import kotlin.coroutines.resume
-import kotlin.coroutines.suspendCoroutine
+import androidx.compose.ui.tooling.preview.Preview as Review
+import com.example.firstapp.ui.theme.FirstAPPTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -118,15 +117,19 @@ fun AttendanceScreen(
             topBar = {
                 TopAppBar(
                     title = {
-                        Text(
-                            "Chấm Công",
-                            style = MaterialTheme.typography.titleLarge,
+                        Box(
                             modifier = Modifier.fillMaxWidth(),
-                            color = yellowDark
-                        )
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                "Chấm Công",
+                                color = yellowDark,
+                                style = MaterialTheme.typography.titleLarge
+                            )
+                        }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = yellowPrimary
+                        containerColor = Color(0xFFFFF9C0)
                     )
                 )
             },
@@ -181,27 +184,32 @@ fun AttendanceScreen(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
-                    Button(
-                        onClick = {
-                            currentAttendanceType = AttendanceType.CHECK_IN
-                            showCamera = true
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth(0.8f)
-                            .height(56.dp),
-                        enabled = attendanceState !is AttendanceState.Loading && currentLocation != null,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = yellowPrimary,
-                            contentColor = yellowDark
-                        ),
-                        shape = RoundedCornerShape(16.dp)
+                    Box (
+                        modifier = Modifier.fillMaxWidth(),
+                        contentAlignment = Alignment.Center,
                     ) {
-                        Text(
-                            text = "📷 Chấm Công Vào",
-                            style = MaterialTheme.typography.titleMedium,
-                            modifier = Modifier.fillMaxWidth(),
-                            color = yellowDark
-                        )
+                        Button(
+                            onClick = {
+                                currentAttendanceType = AttendanceType.CHECK_IN
+                                showCamera = true
+                            },
+                            modifier = Modifier
+                                .fillMaxWidth(0.8f)
+                                .height(56.dp),
+                            enabled = attendanceState !is AttendanceState.Loading && currentLocation != null,
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFFFFF9C4),
+                                contentColor = Color(0xFFFFF9C4)
+                            ),
+                            shape = RoundedCornerShape(16.dp)
+                        ) {
+                                Text(
+                                    text = "📷 CheckIn",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    color = Color(0xFFFFF9C4)
+                                )
+
+                        }
                     }
 
                     Spacer(modifier = Modifier.height(20.dp))
@@ -221,12 +229,16 @@ fun AttendanceScreen(
                         ),
                         shape = RoundedCornerShape(16.dp)
                     ) {
-                        Text(
-                            text = "📷 Chấm Công Ra",
-                            style = MaterialTheme.typography.titleMedium,
+                        Box (
                             modifier = Modifier.fillMaxWidth(),
-                            color = yellowDark
-                        )
+                            contentAlignment = Alignment.Center
+                        ){
+                            Text(
+                                text = "📷 CheckOut",
+                                style = MaterialTheme.typography.titleLarge,
+                                color = yellowDark
+                            )
+                        }
                     }
                 }
 
@@ -405,4 +417,12 @@ private fun startLocationUpdates(context: android.content.Context, viewModel: At
 enum class AttendanceType {
     CHECK_IN,
     CHECK_OUT
+}
+
+@Review(showBackground = true, name = "Attendance Screen Preview")
+@Composable
+fun PreviewAttendanceScreen() {
+    FirstAPPTheme {
+        AttendanceScreen()
+    }
 }
