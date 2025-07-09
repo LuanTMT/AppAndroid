@@ -32,6 +32,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 import androidx.compose.ui.tooling.preview.Preview as Review
 import com.example.firstapp.ui.theme.FirstAPPTheme
+import com.example.firstapp.ui.theme.GreenDark
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -118,7 +119,7 @@ fun AttendanceScreen(
                 TopAppBar(
                     title = {
                         Box(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier.fillMaxSize().fillMaxWidth(),
                             contentAlignment = Alignment.Center
                         ) {
                             Text(
@@ -129,7 +130,7 @@ fun AttendanceScreen(
                         }
                     },
                     colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = Color(0xFFFFF9C0)
+                        containerColor = GreenDark
                     )
                 )
             },
@@ -137,9 +138,7 @@ fun AttendanceScreen(
         ) { padding ->
             Column(
                 modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding)
-                    .padding(16.dp),
+                    .fillMaxSize(),
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
@@ -160,13 +159,13 @@ fun AttendanceScreen(
                         Text(
                             text = "📍 Vị trí hiện tại:",
                             style = MaterialTheme.typography.titleMedium,
-                            color = yellowDark
+//                            color = yellowDark
                         )
                         Spacer(modifier = Modifier.height(12.dp))
                         currentLocation?.let { location ->
-                            Text("Latitude: ${location.latitude}", color = yellowDark)
-                            Text("Longitude: ${location.longitude}", color = yellowDark)
-                            Text("Độ chính xác: ${location.accuracy}m", color = yellowDark)
+                            Text("Latitude: ${location.latitude}", color = Color.DarkGray)
+                            Text("Longitude: ${location.longitude}", color = Color.DarkGray)
+                            Text("Độ chính xác: ${location.accuracy}m", color = Color.DarkGray)
                         } ?: Text("Đang lấy vị trí...", color = yellowDark)
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(

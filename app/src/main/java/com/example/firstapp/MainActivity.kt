@@ -20,10 +20,11 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.lifecycle.viewmodel.compose.viewModel
-import com.example.firstapp.data.User
 import com.example.firstapp.viewmodel.UserViewModel
 import com.example.firstapp.ui.AttendanceScreen
+import androidx.compose.ui.tooling.preview.Preview as Review
 
+import androidx.core.view.WindowCompat // vẽ full màn hình
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppNavigator() {
@@ -60,9 +61,8 @@ fun AppNavigator() {
         }
     ) { padding ->
         NavHost(
-            navController = navController, 
+            navController = navController,
             startDestination = "userList",
-            modifier = Modifier.padding(padding)
         ) {
             composable("userList") {
                 UserListScreen()
@@ -79,12 +79,8 @@ fun AppNavigator() {
 fun UserListScreen(viewModel: UserViewModel = viewModel()) {
     val users by viewModel.users.collectAsState()
 
-    Scaffold(
-        topBar = {
-            TopAppBar(title = { Text("User List") })
-        }
-    ) { padding ->
-        LazyColumn(modifier = Modifier.padding(padding).padding(16.dp)) {
+    Scaffold() { padding ->
+        LazyColumn() {
             items(users) { user ->
                 Card(
                     modifier = Modifier
@@ -92,9 +88,19 @@ fun UserListScreen(viewModel: UserViewModel = viewModel()) {
                         .padding(vertical = 4.dp),
                     elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
                 ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Text(text = user.name, style = MaterialTheme.typography.titleMedium)
-                        Text(text = user.email, style = MaterialTheme.typography.bodyMedium)
+                    Column(
+                        modifier = Modifier.padding(16.dp)
+                    ) {
+                        Text(
+                            text = user.name,
+                            style = MaterialTheme.typography.titleMedium,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        Text(
+                            text = user.email,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
                     }
                 }
             }
@@ -105,7 +111,7 @@ fun UserListScreen(viewModel: UserViewModel = viewModel()) {
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge()
+        WindowCompat.setDecorFitsSystemWindows(window, false)
         setContent {
             FirstAPPTheme {
                 Surface(
@@ -116,5 +122,13 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+}
+
+@Review(showBackground = true, name = "Attendance Screen Preview")
+@Composable
+fun PreviewAttendanceScreen() {
+    FirstAPPTheme {
+        AppNavigator()
     }
 }
