@@ -3,7 +3,7 @@ package com.example.firstapp
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.Image
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -19,6 +19,8 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.firstapp.viewmodel.UserViewModel
 import com.example.firstapp.ui.AttendanceScreen
@@ -36,17 +38,6 @@ fun AppNavigator() {
         bottomBar = {
             NavigationBar {
                 NavigationBarItem(
-                    icon = { Text("Danh sách") },
-                    label = { Text("Users") },
-                    selected = currentRoute == "userList",
-                    onClick = {
-                        navController.navigate("userList") {
-                            popUpTo(navController.graph.startDestinationId)
-                            launchSingleTop = true
-                        }
-                    }
-                )
-                NavigationBarItem(
                     icon = { Text("Chấm công") },
                     label = { Text("Attendance") },
                     selected = currentRoute == "attendance",
@@ -57,18 +48,29 @@ fun AppNavigator() {
                         }
                     }
                 )
+                NavigationBarItem(
+                    icon = { Text("Danh sách") },
+                    label = { Text("Users") },
+                    selected = currentRoute == "userList",
+                    onClick = {
+                        navController.navigate("userList") {
+                            popUpTo(navController.graph.startDestinationId)
+                            launchSingleTop = true
+                        }
+                    }
+                )
             }
         }
-    ) { padding ->
+    )  { padding ->
         NavHost(
             navController = navController,
-            startDestination = "userList",
+            startDestination = "attendance",
         ) {
-            composable("userList") {
-                UserListScreen()
-            }
             composable("attendance") {
                 AttendanceScreen()
+            }
+            composable("userList") {
+                UserListScreen()
             }
         }
     }
@@ -89,7 +91,7 @@ fun UserListScreen(viewModel: UserViewModel = viewModel()) {
                     elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
                 ) {
                     Column(
-                        modifier = Modifier.padding(16.dp)
+                        modifier = Modifier.padding(30.dp)
                     ) {
                         Text(
                             text = user.name,
@@ -114,11 +116,21 @@ class MainActivity : ComponentActivity() {
         WindowCompat.setDecorFitsSystemWindows(window, false)
         setContent {
             FirstAPPTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
-                ) {
-                    AppNavigator()
+                Box(modifier = Modifier.fillMaxSize()) {
+                    // Ảnh nền phủ toàn màn hình
+                    Image(
+                        painter = painterResource(id = R.drawable.bg),
+                        contentDescription = null,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+
+                    // Overlay mờ nếu muốn chữ nổi bật
+                    Surface(
+                        modifier = Modifier.fillMaxSize()
+                    ) {
+                        AppNavigator()
+                    }
                 }
             }
         }

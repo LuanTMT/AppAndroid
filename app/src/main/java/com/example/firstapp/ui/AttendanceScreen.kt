@@ -32,7 +32,16 @@ import java.text.SimpleDateFormat
 import java.util.*
 import androidx.compose.ui.tooling.preview.Preview as Review
 import com.example.firstapp.ui.theme.FirstAPPTheme
-import com.example.firstapp.ui.theme.GreenDark
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.layout.ContentScale
+import com.example.firstapp.R
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.runtime.Composable
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.foundation.background
+import androidx.compose.ui.platform.LocalConfiguration
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -114,32 +123,47 @@ fun AttendanceScreen(
             }
         )
     } else {
+        // Nội dung chính
         Scaffold(
             topBar = {
-                TopAppBar(
-                    title = {
-                        Box(
-                            modifier = Modifier.fillMaxSize().fillMaxWidth(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                "Chấm Công",
-                                color = yellowDark,
-                                style = MaterialTheme.typography.titleLarge
-                            )
-                        }
-                    },
-                    colors = TopAppBarDefaults.topAppBarColors(
-                        containerColor = GreenDark
+                val screenHeight = LocalConfiguration.current.screenHeightDp.dp
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(screenHeight / 7) // hoặc 56.dp, hoặc 1/6 màn hình
+                ) {
+                    Image(
+                        painter = painterResource(id = R.drawable.topbar),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .fillMaxSize(),
+                        contentScale = ContentScale.Crop
                     )
-                )
+                    // Overlay mờ nếu muốn
+                    Box(
+                        modifier = Modifier
+                            .matchParentSize()
+                            .background(Color.Black.copy(alpha = 0.2f))
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize(),
+                        contentAlignment = Alignment.Center
+                    ) {
+//                        Text(
+//                            "Chấm Công",
+//                            style = MaterialTheme.typography.titleLarge,
+//                            color = Color.White
+//                        )
+                    }
+                }
             },
-            containerColor = yellowLight
-        ) { padding ->
+            containerColor = Color.Transparent // Để ảnh nền hiển thị trọn vẹn
+        )  { padding ->
             Column(
                 modifier = Modifier
                     .fillMaxSize(),
-                horizontalAlignment = Alignment.CenterHorizontally,
+//                horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
                 // Location Info Card
@@ -148,7 +172,7 @@ fun AttendanceScreen(
                         .fillMaxWidth()
                         .padding(horizontal = 8.dp),
                     elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
-                    colors = CardDefaults.cardColors(containerColor = yellowPrimary)
+//                    colors = CardDefaults.cardColors(containerColor = yellowPrimary)
                 ) {
                     Column(
                         modifier = Modifier
@@ -202,11 +226,11 @@ fun AttendanceScreen(
                             ),
                             shape = RoundedCornerShape(16.dp)
                         ) {
-                                Text(
-                                    text = "📷 CheckIn",
-                                    style = MaterialTheme.typography.titleLarge,
-                                    color = Color(0xFFFFF9C4)
-                                )
+                            Text(
+                                text = "📷 CheckIn",
+                                style = MaterialTheme.typography.titleLarge,
+                                color = Color(0xFFFFF9C4)
+                            )
 
                         }
                     }
@@ -418,7 +442,7 @@ enum class AttendanceType {
     CHECK_OUT
 }
 
-@Review(showBackground = true, name = "Attendance Screen Preview")
+@Review(apiLevel = 33, showBackground = true, name = "Attendance Screen Preview")
 @Composable
 fun PreviewAttendanceScreen() {
     FirstAPPTheme {
