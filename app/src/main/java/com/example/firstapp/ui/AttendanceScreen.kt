@@ -28,8 +28,8 @@ import com.example.firstapp.viewmodel.AttendanceState
 import com.google.android.gms.location.FusedLocationProviderClient
 import com.google.android.gms.location.LocationServices
 import java.io.File
-import java.text.SimpleDateFormat
 import java.util.*
+import java.text.SimpleDateFormat
 import androidx.compose.ui.tooling.preview.Preview as Review
 import com.example.firstapp.ui.theme.FirstAPPTheme
 import androidx.compose.foundation.Image
@@ -42,6 +42,30 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.foundation.background
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.text.style.TextAlign
+import coil.compose.rememberImagePainter
+import androidx.compose.ui.draw.clip
+import android.location.Location
+import java.util.Locale
+import kotlinx.coroutines.delay
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+
+// Định dạng giờ từ Date
+fun formatTime(date: Date?): String {
+    if (date == null) return "--:--:--"
+    val sdf = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+    return sdf.format(date)
+}
+
+// Lấy địa chỉ từ Location (nếu muốn dùng Geocoder thì bổ sung sau)
+fun getAddressFromLocation(context: android.content.Context, location: Location?): String {
+    if (location == null) return "Không xác định"
+    return "Lat: %.5f, Lng: %.5f".format(location.latitude, location.longitude)
+}
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,8 +78,25 @@ fun AttendanceScreen(
     val currentLocation by viewModel.currentLocation.collectAsState()
     val imagePath by viewModel.imagePath.collectAsState()
 
+    // Nếu ViewModel chỉ có 1 imagePath, tạm thời dùng chung cho cả checkin/checkout
+    val checkInImagePath = imagePath // TODO: Nếu tách riêng, sửa lại cho đúng
+    val checkOutImagePath = imagePath // TODO: Nếu tách riêng, sửa lại cho đúng
+
     var showCamera by remember { mutableStateOf(false) }
     var currentAttendanceType by remember { mutableStateOf<AttendanceType?>(null) }
+    var currentTime by remember { mutableStateOf(Date()) }
+    var hasCheckedIn by remember { mutableStateOf(false) }
+    var hasCheckedOut by remember { mutableStateOf(false) }
+    var checkInTime by remember { mutableStateOf<Date?>(null) }
+    var checkOutTime by remember { mutableStateOf<Date?>(null) }
+
+    // Tự động cập nhật thời gian mỗi giây
+    LaunchedEffect(Unit) {
+        while (true) {
+            currentTime = Date()
+            delay(1000) // Cập nhật mỗi 1 giây
+        }
+    }
 
     val yellowPrimary = MaterialTheme.colorScheme.primary
     val yellowLight = MaterialTheme.colorScheme.background
@@ -96,6 +137,18 @@ fun AttendanceScreen(
             is AttendanceState.Success -> {
                 showCamera = false
                 currentAttendanceType = null
+                // Cập nhật trạng thái check in/out thành công
+                when (currentAttendanceType) {
+                    AttendanceType.CHECK_IN -> {
+                        hasCheckedIn = true
+                        checkInTime = Date()
+                    }
+                    AttendanceType.CHECK_OUT -> {
+                        hasCheckedOut = true
+                        checkOutTime = Date()
+                    }
+                    else -> {}
+                }
                 viewModel.resetState()
             }
             is AttendanceState.Error -> {
@@ -129,15 +182,15 @@ fun AttendanceScreen(
                 val screenHeight = LocalConfiguration.current.screenHeightDp.dp
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(screenHeight / 7) // hoặc 56.dp, hoặc 1/6 màn hình
+//                        .fillMaxWidth()
+                        .height(86.dp) // hoặc 56.dp, hoặc 1/6 màn hình
                 ) {
                     Image(
                         painter = painterResource(id = R.drawable.topbar),
                         contentDescription = null,
                         modifier = Modifier
                             .fillMaxSize(),
-                        contentScale = ContentScale.Crop
+                        contentScale = ContentScale.Fit
                     )
                     // Overlay mờ nếu muốn
                     Box(
@@ -145,157 +198,144 @@ fun AttendanceScreen(
                             .matchParentSize()
                             .background(Color.Black.copy(alpha = 0.2f))
                     )
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-//                        Text(
-//                            "Chấm Công",
-//                            style = MaterialTheme.typography.titleLarge,
-//                            color = Color.White
-//                        )
-                    }
                 }
             },
             containerColor = Color.Transparent // Để ảnh nền hiển thị trọn vẹn
         )  { padding ->
+            // State theo dõi scroll
+            val listState = rememberLazyListState()
+            var lastScrollOffset by remember { mutableStateOf(0) }
+            var showChamCongBar by remember { mutableStateOf(true) }
+
+            // Theo dõi hướng scroll
+            LaunchedEffect(listState.firstVisibleItemScrollOffset) {
+                val currentOffset = listState.firstVisibleItemScrollOffset
+                showChamCongBar = currentOffset < lastScrollOffset || currentOffset == 0
+                lastScrollOffset = currentOffset
+            }
+
             Column(
-                modifier = Modifier
-                    .fillMaxSize(),
-//                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
+                modifier = Modifier.fillMaxSize()
             ) {
-                // Location Info Card
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp),
-                    elevation = CardDefaults.cardElevation(defaultElevation = 12.dp),
-//                    colors = CardDefaults.cardColors(containerColor = yellowPrimary)
+                Spacer(modifier = Modifier.height(86.dp))
+                AnimatedVisibility(
+                    visible = showChamCongBar,
+                    enter = fadeIn(),
+                    exit = fadeOut()
                 ) {
-                    Column(
+                    Surface(
                         modifier = Modifier
-                            .padding(24.dp)
-                            .fillMaxWidth(),
-                        horizontalAlignment = Alignment.CenterHorizontally
+                            .fillMaxWidth()
+                            .height(48.dp),
                     ) {
-                        Text(
-                            text = "📍 Vị trí hiện tại:",
-                            style = MaterialTheme.typography.titleMedium,
-//                            color = yellowDark
-                        )
-                        Spacer(modifier = Modifier.height(12.dp))
-                        currentLocation?.let { location ->
-                            Text("Latitude: ${location.latitude}", color = Color.DarkGray)
-                            Text("Longitude: ${location.longitude}", color = Color.DarkGray)
-                            Text("Độ chính xác: ${location.accuracy}m", color = Color.DarkGray)
-                        } ?: Text("Đang lấy vị trí...", color = yellowDark)
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "⏰ ${SimpleDateFormat("HH:mm:ss dd/MM/yyyy", Locale.getDefault()).format(Date())}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = yellowDark
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(32.dp))
-
-                // Action Buttons
-                Column(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Box (
-                        modifier = Modifier.fillMaxWidth(),
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        Button(
-                            onClick = {
-                                currentAttendanceType = AttendanceType.CHECK_IN
-                                showCamera = true
-                            },
-                            modifier = Modifier
-                                .fillMaxWidth(0.8f)
-                                .height(56.dp),
-                            enabled = attendanceState !is AttendanceState.Loading && currentLocation != null,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFFFFF9C4),
-                                contentColor = Color(0xFFFFF9C4)
-                            ),
-                            shape = RoundedCornerShape(16.dp)
+                        Box(
+                            modifier = Modifier.background(Color.Black.copy(alpha = 0.05f)),
+                            contentAlignment = Alignment.Center
                         ) {
                             Text(
-                                text = "📷 CheckIn",
+                                text = "CHẤM CÔNG",
                                 style = MaterialTheme.typography.titleLarge,
-                                color = Color(0xFFFFF9C4)
-                            )
-
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    Button(
-                        onClick = {
-                            currentAttendanceType = AttendanceType.CHECK_OUT
-                            showCamera = true
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth(0.8f)
-                            .height(56.dp),
-                        enabled = attendanceState !is AttendanceState.Loading && currentLocation != null,
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = yellowPrimary,
-                            contentColor = yellowDark
-                        ),
-                        shape = RoundedCornerShape(16.dp)
-                    ) {
-                        Box (
-                            modifier = Modifier.fillMaxWidth(),
-                            contentAlignment = Alignment.Center
-                        ){
-                            Text(
-                                text = "📷 CheckOut",
-                                style = MaterialTheme.typography.titleLarge,
-                                color = yellowDark
+                                color = Color.DarkGray
                             )
                         }
                     }
                 }
-
-                Spacer(modifier = Modifier.height(32.dp))
-
-                // Status
-                when (val state = attendanceState) {
-                    is AttendanceState.Loading -> {
-                        CircularProgressIndicator(color = yellowPrimary)
-                        Text(
-                            "Đang xử lý...",
-                            color = yellowDark,
-                            style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.fillMaxWidth(),
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(padding)
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    item {
+                        AttendanceCard(
+                            title = "Giờ Vào",
+                            time = if (hasCheckedIn) formatTime(checkInTime) else formatTime(currentTime),
+                            address = getAddressFromLocation(context, currentLocation),
+                            status = if (hasCheckedIn) "Đã check in" else null,
+                            statusColor = if (hasCheckedIn) Color.Green else null,
+                            imagePath = checkInImagePath,
+                            buttonText = if (hasCheckedIn) "Cập nhật giờ vào" else "Check In",
+                            buttonColor = Color(0xFFFFA726),
+                            onButtonClick = {
+                                currentAttendanceType = AttendanceType.CHECK_IN
+                                showCamera = true
+                            }
                         )
                     }
-                    is AttendanceState.Success -> {
-                        Text(
-                            text = state.message,
-                            color = yellowDark,
-                            style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.fillMaxWidth(),
+                    item {
+                        AttendanceCard(
+                            title = "Giờ Ra",
+                            time = if (hasCheckedOut) formatTime(checkOutTime) else formatTime(currentTime),
+                            address = getAddressFromLocation(context, currentLocation),
+                            status = if (hasCheckedOut) "Đã check out" else null,
+                            statusColor = if (hasCheckedOut) Color.Green else null,
+                            imagePath = checkOutImagePath,
+                            buttonText = if (hasCheckedOut) "Cập nhật giờ ra" else "Check Out",
+                            buttonColor = Color(0xFF7C4DFF),
+                            onButtonClick = {
+                                currentAttendanceType = AttendanceType.CHECK_OUT
+                                showCamera = true
+                            }
                         )
                     }
-                    is AttendanceState.Error -> {
-                        Text(
-                            text = state.message,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodyLarge,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-                    else -> {}
                 }
+            }
+        }
+    }
+}
+
+@Composable
+fun AttendanceCard(
+    title: String,
+    time: String,
+    address: String,
+    status: String?,
+    statusColor: Color?,
+    imagePath: String?,
+    buttonText: String,
+    buttonColor: Color,
+    onButtonClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 8.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(title, style = MaterialTheme.typography.titleMedium)
+            Spacer(Modifier.height(8.dp))
+            Text(time, style = MaterialTheme.typography.titleLarge, color = Color.Black)
+            Spacer(Modifier.height(8.dp))
+            Text(address, style = MaterialTheme.typography.bodyMedium, color = Color.DarkGray, textAlign = TextAlign.Center)
+            if (status != null && statusColor != null) {
+                Spacer(Modifier.height(8.dp))
+                Text("Trạng thái: $status", color = statusColor, style = MaterialTheme.typography.bodyMedium)
+            }
+            if (imagePath != null) {
+                Spacer(Modifier.height(8.dp))
+                Image(
+                    painter = rememberImagePainter(imagePath), // Nếu dùng Coil, hoặc painterResource nếu là resource
+                    contentDescription = null,
+                    modifier = Modifier
+                        .size(120.dp)
+                        .clip(RoundedCornerShape(12.dp)),
+                    contentScale = ContentScale.Crop
+                )
+            }
+            Spacer(Modifier.height(8.dp))
+            Button(
+                onClick = onButtonClick,
+                colors = ButtonDefaults.buttonColors(containerColor = buttonColor),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(buttonText, color = Color.White)
             }
         }
     }
