@@ -182,14 +182,16 @@ fun AttendanceScreen(
                 val screenHeight = LocalConfiguration.current.screenHeightDp.dp
                 Box(
                     modifier = Modifier
-//                        .fillMaxWidth()
-                        .height(86.dp) // hoặc 56.dp, hoặc 1/6 màn hình
+                        .fillMaxWidth()
+                        .height(86.dp),
+                    contentAlignment = Alignment.BottomCenter
                 ) {
                     Image(
                         painter = painterResource(id = R.drawable.topbar),
                         contentDescription = null,
                         modifier = Modifier
-                            .fillMaxSize(),
+                            .fillMaxWidth()
+                            .height(50.dp), // Chỉ chiếm 1 phần phía dưới
                         contentScale = ContentScale.Fit
                     )
                     // Overlay mờ nếu muốn
