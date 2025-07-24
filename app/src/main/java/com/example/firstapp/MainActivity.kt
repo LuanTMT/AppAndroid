@@ -34,31 +34,35 @@ fun AppNavigator() {
     val currentBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = currentBackStackEntry?.destination?.route
 
+    var showBottomBar by remember { mutableStateOf(true) }
+
     Scaffold(
         bottomBar = {
-            NavigationBar {
-                NavigationBarItem(
-                    icon = { Text("Chấm công") },
-                    label = { Text("Attendance") },
-                    selected = currentRoute == "attendance",
-                    onClick = {
-                        navController.navigate("attendance") {
-                            popUpTo(navController.graph.startDestinationId)
-                            launchSingleTop = true
+            if (showBottomBar) {
+                NavigationBar {
+                    NavigationBarItem(
+                        icon = { Text("Chấm công") },
+                        label = { Text("Attendance") },
+                        selected = currentRoute == "attendance",
+                        onClick = {
+                            navController.navigate("attendance") {
+                                popUpTo(navController.graph.startDestinationId)
+                                launchSingleTop = true
+                            }
                         }
-                    }
-                )
-                NavigationBarItem(
-                    icon = { Text("Danh sách") },
-                    label = { Text("Users") },
-                    selected = currentRoute == "userList",
-                    onClick = {
-                        navController.navigate("userList") {
-                            popUpTo(navController.graph.startDestinationId)
-                            launchSingleTop = true
+                    )
+                    NavigationBarItem(
+                        icon = { Text("Danh sách") },
+                        label = { Text("Users") },
+                        selected = currentRoute == "userList",
+                        onClick = {
+                            navController.navigate("userList") {
+                                popUpTo(navController.graph.startDestinationId)
+                                launchSingleTop = true
+                            }
                         }
-                    }
-                )
+                    )
+                }
             }
         }
     )  { padding ->
@@ -67,7 +71,10 @@ fun AppNavigator() {
             startDestination = "attendance",
         ) {
             composable("attendance") {
-                AttendanceScreen()
+                AttendanceScreen(
+                    onShowCamera = { showBottomBar = false },
+                    onHideCamera = { showBottomBar = true }
+                )
             }
             composable("userList") {
                 UserListScreen()

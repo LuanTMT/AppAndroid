@@ -56,8 +56,8 @@ data class AllowedLocation(val name: String, val latitude: Double, val longitude
 val allowedLocations = listOf(
     AllowedLocation(
         name = "Văn phòng Vis Group Co., Ltd.",
-        latitude = 16.0634623,
-        longitude = 108.170192,
+        latitude = 16.063552,
+        longitude = 108.17021,
         radius = 300 // mét
     )
 )
@@ -108,7 +108,9 @@ fun formatTime(date: Date?): String {
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AttendanceScreen(
-    viewModel: AttendanceViewModel = viewModel()
+    viewModel: AttendanceViewModel = viewModel(),
+    onShowCamera: () -> Unit = {},
+    onHideCamera: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -141,6 +143,17 @@ fun AttendanceScreen(
     var clockType by remember { mutableStateOf<String?>(null) } // "checkIn"/"checkOut"/"update_check_in"/"update_check_out"
     var currentTime by remember { mutableStateOf(Date()) }
     var capturedImage by remember { mutableStateOf<String?>(null) }
+
+    var prevShowCamreModal by remember { mutableStateOf(false)}
+    LaunchedEffect(showCameraModal) {
+        if (showCameraModal && !prevShowCamreModal) {
+            onShowCamera()
+        }
+        if (!showCameraModal && prevShowCamreModal) {
+            onHideCamera()
+        }
+        prevShowCamreModal = showCameraModal
+    }
 
     // Tự động cập nhật giờ mỗi giây
     LaunchedEffect(Unit) {
@@ -243,110 +256,135 @@ fun AttendanceScreen(
         return
     }
 
-    // State theo dõi scroll
-    val listState = rememberLazyListState()
-    var lastScrollOffset by remember { mutableStateOf(0) }
-    var showChamCongBar by remember { mutableStateOf(true) }
-    LaunchedEffect(listState.firstVisibleItemScrollOffset) {
-        val currentOffset = listState.firstVisibleItemScrollOffset
-        showChamCongBar = currentOffset < lastScrollOffset || currentOffset == 0
-        lastScrollOffset = currentOffset
-    }
+    if (showCameraModal) {
+        CameraScreen(
+            onImageCaptured = { path ->
+                viewModel.updateImagePath(path)
+                val type = when(clockType) {
+                    "checkIn", "update_check_in" -> AttendanceType.CHECK_IN
+                    "checkOut", "update_check_out" -> AttendanceType.CHECK_OUT
+                    else -> null
+                }
+                if (type == AttendanceType.CHECK_IN) {
+                    viewModel.checkIn(context)
+                } else if (type == AttendanceType.CHECK_OUT) {
+                    viewModel.checkOut(context)
+                }
+                showCameraModal = false
+            },
+            onCancel = {
+                showCameraModal = false
+            }
+        )
+    } else {
+        // State theo dõi scroll
+        val listState = rememberLazyListState()
+        var lastScrollOffset by remember { mutableStateOf(0) }
+        var showChamCongBar by remember { mutableStateOf(true) }
+        LaunchedEffect(listState.firstVisibleItemScrollOffset) {
+            val currentOffset = listState.firstVisibleItemScrollOffset
+            showChamCongBar = currentOffset < lastScrollOffset || currentOffset == 0
+            lastScrollOffset = currentOffset
+        }
 
-    Scaffold(
-        topBar = {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(86.dp),
-                contentAlignment = Alignment.BottomCenter
-            ) {
-                Image(
-                    painter = painterResource(id = R.drawable.topbar),
-                    contentDescription = null,
-                    modifier = Modifier
-                        .fillMaxWidth().height(50.dp),
-                    contentScale = ContentScale.Fit
-                )
+        Scaffold(
+            topBar = {
                 Box(
                     modifier = Modifier
-                        .matchParentSize()
-                        .background(Color.Black.copy(alpha = 0.2f))
-                )
-            }
-        },
-        containerColor = Color.Transparent
-    ) { padding ->
-        Column(
-            modifier = Modifier.fillMaxSize()
-        ) {
-            Spacer(modifier = Modifier.height(86.dp))
-            AnimatedVisibility(
-                visible = showChamCongBar,
-                enter = fadeIn(),
-                exit = fadeOut()
-            ) {
-                Surface(
-                    modifier = Modifier
                         .fillMaxWidth()
-                        .height(48.dp),
+                        .height(86.dp),
+                    contentAlignment = Alignment.BottomCenter
                 ) {
+                    Image(
+                        painter = painterResource(id = R.drawable.topbar),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .fillMaxWidth().height(50.dp),
+                        contentScale = ContentScale.Fit
+                    )
                     Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
+                        modifier = Modifier
+                            .matchParentSize()
+                            .background(Color.Black.copy(alpha = 0.2f))
+                    )
+                }
+            },
+            containerColor = Color.Transparent
+        ) { padding ->
+            Column(
+                modifier = Modifier.fillMaxSize()
+            ) {
+                Spacer(modifier = Modifier.height(86.dp))
+                // Ẩn bottomBar khi showCameraModal = true
+                if (!showCameraModal) {
+                    AnimatedVisibility(
+                        visible = showChamCongBar,
+                        enter = fadeIn(),
+                        exit = fadeOut()
                     ) {
-                        Text(
-                            text = "Chấm công",
-                            style = MaterialTheme.typography.titleLarge,
-                            color = Color.White
-                        )
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(48.dp),
+                        ) {
+                            Box(
+                                modifier = Modifier.fillMaxSize(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = "Chấm công",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    color = Color.White
+                                )
+                            }
+                        }
                     }
                 }
-            }
-            LazyColumn(
-                state = listState,
-                modifier = Modifier
-                    .weight(1f)
-                    .padding(padding)
-                    .padding(16.dp),
-                verticalArrangement = Arrangement.spacedBy(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                item {
-                    AttendanceCard(
-                        title = "Giờ Vào",
-                        time = formatTime(currentTime),
-                        address = address,
-                        status = if (attendanceData["checkIn"] != null) "Đã check in" else null,
-                        statusColor = if (attendanceData["checkIn"] != null) Color.Green else null,
-                        imagePath = (attendanceData["checkIn"] as? Map<*, *>)?.get("image") as? String,
-                        buttonText = if (attendanceData["checkIn"] != null) "Cập nhật giờ vào" else "Chấm công vào",
-                        buttonColor = Color(0xFFFFA726),
-                        onButtonClick = {
-                            clockType = if (attendanceData["checkIn"] != null) "update_check_in" else "checkIn"
-                            showCameraModal = true
-                        },
-                        isValidLocation = isValidLocation,
-                        nameLocal = nameLocal
-                    )
-                }
-                item {
-                    AttendanceCard(
-                        title = "Giờ Ra",
-                        time = formatTime(currentTime),
-                        address = address,
-                        status = if (attendanceData["checkOut"] != null) "Đã check out" else null,
-                        statusColor = if (attendanceData["checkOut"] != null) Color.Green else null,
-                        imagePath = (attendanceData["checkOut"] as? Map<*, *>)?.get("image") as? String,
-                        buttonText = if (attendanceData["checkOut"] != null) "Cập nhật giờ ra" else "Chấm công ra",
-                        buttonColor = Color(0xFF7C4DFF),
-                        onButtonClick = {
-                            clockType = if (attendanceData["checkOut"] != null) "update_check_out" else "checkOut"
-                            showCameraModal = true
-                        },
-                        isValidLocation = isValidLocation,
-                        nameLocal = nameLocal
-                    )
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier
+                        .weight(1f)
+                        .padding(padding)
+                        .padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    item {
+                        AttendanceCard(
+                            title = "Giờ Vào",
+                            time = formatTime(currentTime),
+                            address = address,
+                            status = if (attendanceData["checkIn"] != null) "Đã check in" else null,
+                            statusColor = if (attendanceData["checkIn"] != null) Color.Green else null,
+                            imagePath = (attendanceData["checkIn"] as? Map<*, *>)?.get("image") as? String,
+                            buttonText = if (attendanceData["checkIn"] != null) "Cập nhật giờ vào" else "Chấm công vào",
+                            buttonColor = Color(0xFFFFA726),
+                            onButtonClick = {
+                                clockType = if (attendanceData["checkIn"] != null) "update_check_in" else "checkIn"
+                                showCameraModal = true
+                            },
+                            isValidLocation = isValidLocation,
+                            nameLocal = nameLocal
+                        )
+                    }
+                    item {
+                        AttendanceCard(
+                            title = "Giờ Ra",
+                            time = formatTime(currentTime),
+                            address = address,
+                            status = if (attendanceData["checkOut"] != null) "Đã check out" else null,
+                            statusColor = if (attendanceData["checkOut"] != null) Color.Green else null,
+                            imagePath = (attendanceData["checkOut"] as? Map<*, *>)?.get("image") as? String,
+                            buttonText = if (attendanceData["checkOut"] != null) "Cập nhật giờ ra" else "Chấm công ra",
+                            buttonColor = Color(0xFF7C4DFF),
+                            onButtonClick = {
+                                clockType = if (attendanceData["checkOut"] != null) "update_check_out" else "checkOut"
+                                showCameraModal = true
+                            },
+                            isValidLocation = isValidLocation,
+                            nameLocal = nameLocal
+                        )
+                    }
                 }
             }
         }
