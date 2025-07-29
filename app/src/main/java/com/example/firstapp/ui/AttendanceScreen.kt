@@ -49,6 +49,36 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.draw.clip
 import com.example.firstapp.ui.theme.FirstAPPTheme
 import androidx.compose.ui.tooling.preview.Preview as Review
+import okhttp3.MediaType.Companion.toMediaTypeOrNull
+import okhttp3.MultipartBody
+import okhttp3.RequestBody.Companion.asRequestBody
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import retrofit2.http.Multipart
+import retrofit2.http.POST
+import retrofit2.http.Part
+import retrofit2.Response
+import retrofit2.Retrofit
+import retrofit2.converter.gson.GsonConverterFactory
+import android.util.Log
+
+interface AttendanceApi {
+    @Multipart
+    @POST("api-test")
+    suspend fun uploadAttendanceImage(
+        @Part image: MultipartBody.Part
+    ): Response<Any> // hoặc Response<YourResponseModel>
+}
+
+object ApiClient {
+    val retrofit: Retrofit = Retrofit.Builder()
+        .baseUrl("http://192.168.200.196:5021/")
+        .addConverterFactory(GsonConverterFactory.create())
+        .build()
+
+    val attendanceApi: AttendanceApi = retrofit.create(AttendanceApi::class.java)
+}
 
 // Định nghĩa allowedLocations (có thể lấy từ server hoặc hardcode)
 data class AllowedLocation(val name: String, val latitude: Double, val longitude: Double, val radius: Int)
@@ -144,6 +174,11 @@ fun AttendanceScreen(
     var currentTime by remember { mutableStateOf(Date()) }
     var capturedImage by remember { mutableStateOf<String?>(null) }
 
+    // State quản lý upload
+    var isUploading by remember { mutableStateOf(false) }
+    var uploadError by remember { mutableStateOf<String?>(null) }
+    var uploadSuccess by remember { mutableStateOf(false) }
+
     // Tự động cập nhật giờ mỗi giây
     LaunchedEffect(Unit) {
         while (true) {
@@ -168,13 +203,56 @@ fun AttendanceScreen(
     if (showCameraModal) {
         CameraScreen(
             onImageCaptured = { path ->
-                // Xử lý khi chụp xong ảnh
-                // viewModel.updateImagePath(path) // Nếu cần lưu ảnh vào ViewModel
-                showCameraModal = false
+                // Reset state khi bắt đầu upload mới
+                isUploading = true
+                uploadError = null
+                uploadSuccess = false
+
+                // Gửi ảnh lên server
+                CoroutineScope(Dispatchers.IO).launch {
+                    try {
+                        Log.d("AttendanceScreen", "Bắt đầu upload ảnh: $path")
+                        val file = File(path)
+                        if (!file.exists()) {
+                            Log.e("AttendanceScreen", "File không tồn tại: $path")
+                            uploadError = "File ảnh không tồn tại"
+                            isUploading = false
+                            return@launch
+                        }
+
+                        val requestFile = file.asRequestBody("image/jpeg".toMediaTypeOrNull())
+                        val body = MultipartBody.Part.createFormData("image", file.name, requestFile)
+                        val response = ApiClient.attendanceApi.uploadAttendanceImage(body)
+
+                        if (response.isSuccessful) {
+                            Log.d("AttendanceScreen", "Upload thành công: ${response.code()}")
+                            uploadSuccess = true
+                            uploadError = null
+                            // Chỉ thoát khỏi camera khi thành công
+                            showCameraModal = false
+                        } else {
+                            Log.e("AttendanceScreen", "Upload thất bại: ${response.code()} - ${response.message()}")
+                            uploadError = "Upload thất bại: ${response.message()}"
+                            uploadSuccess = false
+                        }
+                        isUploading = false
+                    } catch (e: Exception) {
+                        Log.e("AttendanceScreen", "Lỗi upload: ${e.message}", e)
+                        uploadError = "Lỗi upload: ${e.message}"
+                        uploadSuccess = false
+                        isUploading = false
+                    }
+                }
             },
             onCancel = {
+                // Reset state khi hủy
+                isUploading = false
+                uploadError = null
+                uploadSuccess = false
                 showCameraModal = false
-            }
+            },
+            isUploading = isUploading,
+            uploadError = uploadError
         )
         return
     }
@@ -449,7 +527,9 @@ fun AttendanceCard(
 @Composable
 fun CameraScreen(
     onImageCaptured: (String) -> Unit,
-    onCancel: () -> Unit
+    onCancel: () -> Unit,
+    isUploading: Boolean,
+    uploadError: String?
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -519,46 +599,137 @@ fun CameraScreen(
                 }
             )
 
-            // Capture Button
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(16.dp),
-                contentAlignment = Alignment.BottomCenter
-            ) {
-                Button(
-                    onClick = {
-                        imageCapture?.let { capture ->
-                            val photoFile = File(
-                                context.getExternalFilesDir(null),
-                                "attendance_${System.currentTimeMillis()}.jpg"
-                            )
-
-                            val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
-                            capture.takePicture(
-                                outputOptions,
-                                ContextCompat.getMainExecutor(context),
-                                object : ImageCapture.OnImageSavedCallback {
-                                    override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
-                                        onImageCaptured(photoFile.absolutePath)
-                                    }
-
-                                    override fun onError(exception: ImageCaptureException) {
-                                        exception.printStackTrace()
-                                    }
-                                }
-                            )
-                        }
-                    },
+            // Overlay hiển thị trạng thái upload
+            if (isUploading) {
+                Box(
                     modifier = Modifier
-                        .size(80.dp),
-                    shape = RoundedCornerShape(40.dp),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = yellowPrimary,
-                        contentColor = yellowDark
-                    )
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.7f)),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Text("📸", style = MaterialTheme.typography.titleLarge, color = yellowDark)
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        CircularProgressIndicator(
+                            color = Color.White,
+                            modifier = Modifier.size(48.dp)
+                        )
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            "Đang gửi ảnh...",
+                            color = Color.White,
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    }
+                }
+            }
+
+            // Hiển thị lỗi upload
+            if (uploadError != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(Color.Black.copy(alpha = 0.8f)),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(32.dp),
+                        colors = CardDefaults.cardColors(
+                            containerColor = Color.White
+                        )
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(24.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally
+                        ) {
+                            Text(
+                                "❌ Lỗi",
+                                style = MaterialTheme.typography.titleLarge,
+                                color = Color.Red
+                            )
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                uploadError!!,
+                                style = MaterialTheme.typography.bodyMedium,
+                                textAlign = TextAlign.Center,
+                                color = Color.Black
+                            )
+                            Spacer(modifier = Modifier.height(24.dp))
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                Button(
+                                    onClick = {
+                                        // Reset error và thử lại
+                                        onCancel()
+                                    },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = Color.Gray
+                                    )
+                                ) {
+                                    Text("Hủy", color = Color.White)
+                                }
+                                Button(
+                                    onClick = {
+                                        // Có thể thêm logic thử lại ở đây
+                                        onCancel()
+                                    },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = yellowPrimary
+                                    )
+                                ) {
+                                    Text("Thử lại", color = yellowDark)
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Capture Button (chỉ hiện khi không đang upload và không có lỗi)
+            if (!isUploading && uploadError == null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Button(
+                        onClick = {
+                            imageCapture?.let { capture ->
+                                val photoFile = File(
+                                    context.getExternalFilesDir(null),
+                                    "attendance_${System.currentTimeMillis()}.jpg"
+                                )
+
+                                val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
+                                capture.takePicture(
+                                    outputOptions,
+                                    ContextCompat.getMainExecutor(context),
+                                    object : ImageCapture.OnImageSavedCallback {
+                                        override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
+                                            onImageCaptured(photoFile.absolutePath)
+                                        }
+
+                                        override fun onError(exception: ImageCaptureException) {
+                                            exception.printStackTrace()
+                                        }
+                                    }
+                                )
+                            }
+                        },
+                        modifier = Modifier
+                            .size(80.dp),
+                        shape = RoundedCornerShape(40.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = yellowPrimary,
+                            contentColor = yellowDark
+                        )
+                    ) {
+                        Text("📸", style = MaterialTheme.typography.titleLarge, color = yellowDark)
+                    }
                 }
             }
         }
@@ -569,11 +740,14 @@ enum class AttendanceType {
     CHECK_IN,
     CHECK_OUT
 }
-
-@Review(apiLevel = 33, showBackground = true, name = "Attendance Screen Preview")
-@Composable
-fun PreviewAttendanceScreen() {
-    FirstAPPTheme {
-        AttendanceScreen()
-    }
-}
+//@Review(apiLevel = 33, showBackground = true, name = "Attendance Screen Preview")
+//@Composable
+//fun PreviewAttendanceScreen() {
+//    FirstAPPTheme {
+//        // Preview với callback giả để test UI
+//        AttendanceScreen(
+//            onShowCamera = { /* Preview không cần thực sự ẩn bottomBar */ },
+//            onHideCamera = { /* Preview không cần thực sự hiện bottomBar */ }
+//        )
+//    }
+//}
