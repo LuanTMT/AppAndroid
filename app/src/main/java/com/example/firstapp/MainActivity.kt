@@ -11,6 +11,7 @@ import com.example.firstapp.ui.theme.FirstAPPTheme
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -27,57 +28,85 @@ import com.example.firstapp.ui.AttendanceScreen
 import androidx.compose.ui.tooling.preview.Preview as Review
 
 import androidx.core.view.WindowCompat // vẽ full màn hình
+import com.example.firstapp.data.UserPreferences
+import com.example.firstapp.ui.LoginScreen
+import androidx.compose.ui.platform.LocalContext
+import kotlinx.coroutines.launch
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AppNavigator() {
-    val navController = rememberNavController()
-    val currentBackStackEntry by navController.currentBackStackEntryAsState()
-    val currentRoute = currentBackStackEntry?.destination?.route
+    val context = LocalContext.current
+    var isLoggedIn by remember { mutableStateOf<Boolean?>(null) }
+    val scope = rememberCoroutineScope()
 
-    var showBottomBar by remember { mutableStateOf(true) }
+    // Kiểm tra token khi mở app
+    LaunchedEffect(Unit) {
+        val token = UserPreferences.getToken(context)
+        isLoggedIn = !token.isNullOrEmpty()
+    }
 
-    Scaffold(
-        bottomBar = {
-            if (showBottomBar) {
-                NavigationBar {
-                    NavigationBarItem(
-                        icon = { Text("Chấm công") },
-                        label = { Text("Attendance") },
-                        selected = currentRoute == "attendance",
-                        onClick = {
-                            navController.navigate("attendance") {
-                                popUpTo(navController.graph.startDestinationId)
-                                launchSingleTop = true
+    if (isLoggedIn == null) {
+        // Đang kiểm tra token, có thể show splash/loading
+        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            CircularProgressIndicator()
+        }
+    } else if (isLoggedIn == false) {
+        // Chưa đăng nhập
+        LoginScreen(
+            onLoginSuccess = { isLoggedIn = true }
+        )
+    } else {
+        // Đã đăng nhập, show app như cũ
+        val navController = rememberNavController()
+        val currentBackStackEntry by navController.currentBackStackEntryAsState()
+        val currentRoute = currentBackStackEntry?.destination?.route
+
+        var showBottomBar by remember { mutableStateOf(true) }
+
+        Scaffold(
+            bottomBar = {
+                if (showBottomBar) {
+                    NavigationBar {
+                        NavigationBarItem(
+                            icon = { Text("Chấm công") },
+                            label = { Text("Attendance") },
+                            selected = currentRoute == "attendance",
+                            onClick = {
+                                navController.navigate("attendance") {
+                                    popUpTo(navController.graph.startDestinationId)
+                                    launchSingleTop = true
+                                }
                             }
-                        }
-                    )
-                    NavigationBarItem(
-                        icon = { Text("Danh sách") },
-                        label = { Text("Users") },
-                        selected = currentRoute == "userList",
-                        onClick = {
-                            navController.navigate("userList") {
-                                popUpTo(navController.graph.startDestinationId)
-                                launchSingleTop = true
+                        )
+                        NavigationBarItem(
+                            icon = { Text("Danh sách") },
+                            label = { Text("Users") },
+                            selected = currentRoute == "userList",
+                            onClick = {
+                                navController.navigate("userList") {
+                                    popUpTo(navController.graph.startDestinationId)
+                                    launchSingleTop = true
+                                }
                             }
-                        }
-                    )
+                        )
+                    }
                 }
             }
-        }
-    )  { padding ->
-        NavHost(
-            navController = navController,
-            startDestination = "attendance",
-        ) {
-            composable("attendance") {
-                AttendanceScreen(
-                    onShowCamera = { showBottomBar = false },
-                    onHideCamera = { showBottomBar = true }
-                )
-            }
-            composable("userList") {
-                UserListScreen()
+        )  { padding ->
+            NavHost(
+                navController = navController,
+                startDestination = "attendance",
+            ) {
+                composable("attendance") {
+                    AttendanceScreen(
+                        onShowCamera = { showBottomBar = false },
+                        onHideCamera = { showBottomBar = true }
+                    )
+                }
+                composable("userList") {
+                    UserListScreen()
+                }
             }
         }
     }
