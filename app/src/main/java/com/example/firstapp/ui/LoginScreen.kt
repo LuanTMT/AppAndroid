@@ -16,13 +16,15 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
 import org.json.JSONObject
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 @Composable
 fun LoginScreen(
     onLoginSuccess: () -> Unit
 ) {
     val context = LocalContext.current
-    var username by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     var isLoading by remember { mutableStateOf(false) }
@@ -38,8 +40,8 @@ fun LoginScreen(
         Text("Đăng nhập", style = MaterialTheme.typography.titleLarge)
         Spacer(Modifier.height(24.dp))
         OutlinedTextField(
-            value = username,
-            onValueChange = { username = it },
+            value = email,
+            onValueChange = { email = it },
             label = { Text("Tên đăng nhập") },
             singleLine = true
         )
@@ -62,34 +64,61 @@ fun LoginScreen(
                 error = null
                 scope.launch {
                     try {
-                        val client = OkHttpClient()
-                        val json = JSONObject()
-                        json.put("username", username)
-                        json.put("password", password)
-                        val mediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
-                        val body: RequestBody = json.toString().toRequestBody(mediaType)
-                        val request = Request.Builder()
-                            .url("http://192.168.200.196:5021/auth/login")
-                            .post(body)
-                            .build()
-                        val response = client.newCall(request).execute()
-                        if (response.isSuccessful) {
-                            val responseBody = response.body?.string()
-                            val jsonResponse = JSONObject(responseBody ?: "{}")
-                            val token = jsonResponse.optString("token", null)
-                            if (!token.isNullOrEmpty()) {
-                                UserPreferences.saveToken(context, token)
-                                isLoading = false
-                                onLoginSuccess()
+                        // Chuyển network call sang background thread
+                        withContext(Dispatchers.IO) {
+                            val client = OkHttpClient()
+                            val json = JSONObject()
+                            json.put("email", email)
+                            json.put("password", password)
+                            val mediaType = "application/json; charset=utf-8".toMediaTypeOrNull()
+                            val body: RequestBody = json.toString().toRequestBody(mediaType)
+                            val request = Request.Builder()
+                                .url("http://192.168.200.196:5021/auth/login")
+                                .post(body)
+                                .build()
+
+                            // Log request để debug
+                            println("Sending request to: ${request.url}")
+                            println("Request body: ${json.toString()}")
+
+                            val response = client.newCall(request).execute()
+                            println("Response code: ${response.code}")
+                            println("Response message: ${response.message}")
+
+                            if (response.isSuccessful) {
+                                val responseBody = response.body?.string()
+                                println("Response body: $responseBody")
+
+                                if (responseBody.isNullOrEmpty()) {
+                                    error = "Lỗi kết nối: Không nhận được phản hồi từ server"
+                                    isLoading = false
+                                    return@withContext
+                                }
+
+                                try {
+                                    val jsonResponse = JSONObject(responseBody)
+                                    val token = jsonResponse.optString("token", null)
+                                    if (!token.isNullOrEmpty()) {
+                                        UserPreferences.saveToken(context, token)
+                                        isLoading = false
+                                        onLoginSuccess()
+                                    } else {
+                                        error = "Đăng nhập thất bại: Không nhận được token. Server trả về: $responseBody"
+                                        isLoading = false
+                                    }
+                                } catch (e: Exception) {
+                                    error = "Lỗi parse JSON: $responseBody"
+                                    isLoading = false
+                                }
                             } else {
-                                error = "Đăng nhập thất bại: Không nhận được token"
+                                val errorBody = response.body?.string()
+                                error = "Sai tài khoản hoặc mật khẩu (${response.code}): $errorBody"
                                 isLoading = false
                             }
-                        } else {
-                            error = "Sai tài khoản hoặc mật khẩu"
-                            isLoading = false
                         }
                     } catch (e: Exception) {
+                        println("Exception: ${e.message}")
+                        e.printStackTrace()
                         error = "Lỗi kết nối: ${e.message}"
                         isLoading = false
                     }
