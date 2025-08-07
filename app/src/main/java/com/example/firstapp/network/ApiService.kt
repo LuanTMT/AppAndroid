@@ -1,15 +1,32 @@
+// ApiService.kt
 package com.example.firstapp.network
 
-import retrofit2.http.GET
-import retrofit2.http.POST
-import retrofit2.http.Body
-import com.example.firstapp.data.User
 import com.example.firstapp.data.Attendance
+import com.example.firstapp.data.User
+import okhttp3.MultipartBody
+import retrofit2.Response
+import retrofit2.http.*
 
 interface ApiService {
     @GET("users")
     suspend fun getUsers(): List<User>
-    
+
     @POST("attendance")
     suspend fun submitAttendance(@Body attendance: Attendance): Attendance
+
+    @GET("users/{id}")
+    suspend fun getUserDetail(@Path("id") id: String): User
+
+    @PUT("users/{id}")
+    suspend fun updateUser(@Path("id") id: String, @Body user: User): User
+
+    @POST("users/change-password")
+    suspend fun changePassword(@Body body: Map<String, String>): Response<Unit>
+
+    @Multipart
+    @POST("users/{id}/avatar")
+    suspend fun uploadAvatar(
+        @Path("id") id: String,
+        @Part image: MultipartBody.Part
+    ): Response<Unit>
 }
