@@ -1,6 +1,8 @@
 // ProfileScreen.kt
 package com.example.firstapp.ui
 
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -17,6 +19,12 @@ import com.example.firstapp.data.UserPreferences
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import android.util.Log
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.style.TextOverflow
+import coil.compose.AsyncImage
+import com.example.firstapp.network.ApiClient
 
 @Composable
 fun ProfileScreen() {
@@ -73,6 +81,42 @@ fun ProfileScreen() {
         Log.d("ProfileScreen", "state.loading = false, user loaded? ${state.user != null}, error=${state.error}")
         Column(modifier = Modifier.padding(16.dp)) {
             state.user?.let { user ->
+                // Header with avatar and basic info
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    val avatarUrl = user.avatar?.let { path ->
+                        if (path.startsWith("http")) path else ApiClient.BASE_URL.trimEnd('/') + path
+                    }
+                    AsyncImage(
+                        model = avatarUrl,
+                        contentDescription = "Avatar",
+                        modifier = Modifier
+                            .size(72.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentScale = ContentScale.Crop
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(user.name ?: "", style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Text(user.email ?: "", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Row(modifier = Modifier.padding(top = 6.dp)) {
+                            if (!user.position.isNullOrBlank()) AssistChip(label = { Text(user.position) }, onClick = { })
+                            if (!user.role.isNullOrBlank()) {
+                                Spacer(Modifier.width(8.dp))
+                                AssistChip(label = { Text(user.role) }, onClick = { })
+                            }
+                            if (!user.workType.isNullOrBlank()) {
+                                Spacer(Modifier.width(8.dp))
+                                AssistChip(label = { Text(user.workType) }, onClick = { })
+                            }
+                        }
+                    }
+                }
+                Spacer(Modifier.height(16.dp))
+
                 OutlinedTextField(
                     value = fullName.ifEmpty { "" },
                     onValueChange = { fullName = it },

@@ -27,6 +27,7 @@ private class AuthInterceptor : Interceptor {
 }
 
 object ApiClient {
+    const val BASE_URL: String = "http://192.168.200.196:5021/"
     private val httpClient: OkHttpClient by lazy {
         OkHttpClient.Builder()
             .addInterceptor(AuthInterceptor())
@@ -35,7 +36,7 @@ object ApiClient {
 
     val api: ApiService by lazy {
         Retrofit.Builder()
-            .baseUrl("http://192.168.200.196:5021/")
+            .baseUrl(BASE_URL)
             .client(httpClient)
             .addConverterFactory(GsonConverterFactory.create())
             .build()

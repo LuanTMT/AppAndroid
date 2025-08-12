@@ -8,6 +8,8 @@ data class User(
     @SerializedName(value = "name", alternate = ["fullName"]) val name: String? = null,
     @SerializedName("email") val email: String? = null,
     @SerializedName("position") val position: String? = null,
+    @SerializedName("role") val role: String? = null,
+    @SerializedName("workType") val workType: String? = null,
     @SerializedName(value = "accountNumber", alternate = ["account_number"]) val accountNumber: String? = null,
     @SerializedName(value = "bankName", alternate = ["bank_name"]) val bankName: String? = null,
     @SerializedName("avatar") val avatar: String? = null
