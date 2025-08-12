@@ -3,6 +3,7 @@ package com.example.firstapp.network
 
 import com.example.firstapp.data.Attendance
 import com.example.firstapp.data.User
+import com.example.firstapp.data.ApiResponse
 import okhttp3.MultipartBody
 import retrofit2.Response
 import retrofit2.http.*
@@ -15,10 +16,10 @@ interface ApiService {
     suspend fun submitAttendance(@Body attendance: Attendance): Attendance
 
     @GET("users/{id}")
-    suspend fun getUserDetail(@Path("id") id: String): User
+    suspend fun getUserDetail(@Path("id") id: String): ApiResponse<User>
 
     @PUT("users/{id}")
-    suspend fun updateUser(@Path("id") id: String, @Body user: User): User
+    suspend fun updateUser(@Path("id") id: String, @Body user: User): ApiResponse<User>
 
     @POST("users/change-password")
     suspend fun changePassword(@Body body: Map<String, String>): Response<Unit>

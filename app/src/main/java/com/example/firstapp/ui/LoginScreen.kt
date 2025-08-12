@@ -17,8 +17,10 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody
 import org.json.JSONObject
+import com.example.firstapp.network.TokenProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import com.example.firstapp.data.JwtUtils
 
 @Composable
 fun LoginScreen(
@@ -125,9 +127,37 @@ fun LoginScreen(
                                 if (response.isSuccessful && !responseBody.isNullOrEmpty()) {
                                     try {
                                         val jsonResponse = JSONObject(responseBody)
-                                        val token = jsonResponse.optString("token", null)
+
+                                        // Lấy token từ nhiều khả năng cấu trúc JSON khác nhau
+                                        val tokenCandidates = sequence {
+                                            yield(jsonResponse.optString("token", null))
+                                            yield(jsonResponse.optJSONObject("data")?.optString("token", null))
+                                            yield(jsonResponse.optJSONObject("user")?.optString("token", null))
+                                        }.firstOrNull { !it.isNullOrEmpty() }
+
+                                        val token = tokenCandidates
                                         if (!token.isNullOrEmpty()) {
                                             UserPreferences.saveToken(context, token)
+                                            TokenProvider.token = token
+
+                                            // Thu thập userId theo nhiều khả năng
+                                            val userIdCandidates = sequence {
+                                                yield(jsonResponse.optString("userId", null))
+                                                yield(jsonResponse.optString("id", null))
+                                                yield(jsonResponse.optJSONObject("user")?.optString("id", null))
+                                                yield(jsonResponse.optJSONObject("data")?.optString("userId", null))
+                                                yield(jsonResponse.optJSONObject("data")?.optString("id", null))
+                                                yield(jsonResponse.optJSONObject("data")?.optJSONObject("user")?.optString("id", null))
+                                            }.firstOrNull { !it.isNullOrEmpty() }
+
+                                            val finalUserId = userIdCandidates ?: JwtUtils.extractUserId(token)
+                                            if (!finalUserId.isNullOrEmpty()) {
+                                                println("Login success: saving userId=$finalUserId")
+                                                UserPreferences.saveUserId(context, finalUserId)
+                                            } else {
+                                                println("Login success: userId not found in response or token payload")
+                                            }
+
                                             onLoginSuccess()
                                         } else {
                                             error = "Đăng nhập thất bại: Không nhận được token. Server trả về: $responseBody"

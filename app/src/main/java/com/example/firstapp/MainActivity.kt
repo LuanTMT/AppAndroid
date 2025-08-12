@@ -30,6 +30,8 @@ import com.example.firstapp.ui.ProfileScreen
 import com.example.firstapp.ui.theme.FirstAPPTheme
 import com.example.firstapp.viewmodel.ProfileViewModel
 import kotlinx.coroutines.launch
+import com.example.firstapp.network.TokenProvider
+import android.util.Log
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -41,6 +43,8 @@ fun AppNavigator() {
     // Kiểm tra token khi mở app
     LaunchedEffect(Unit) {
         val token = UserPreferences.getToken(context)
+        TokenProvider.token = token
+        Log.d("MainActivity", "Loaded token: ${!token.isNullOrEmpty()} (hidden)")
         isLoggedIn = !token.isNullOrEmpty()
     }
 
@@ -103,7 +107,7 @@ fun AppNavigator() {
                     )
                 }
                 composable("account") {
-                    ProfileScreen(viewModel = viewModel())
+                    ProfileScreen() // <-- không truyền viewModel nữa
                 }
             }
         }
