@@ -29,6 +29,8 @@ import androidx.compose.ui.tooling.preview.Preview
 import com.example.firstapp.data.ProfileState
 import com.example.firstapp.data.User
 import com.example.firstapp.ui.theme.FirstAPPTheme
+import android.app.Activity
+import com.example.firstapp.network.TokenProvider
 
 @Composable
 fun ProfileScreen() {
@@ -86,7 +88,14 @@ fun ProfileScreen() {
         ProfileContent(
             state = state,
             onSave = { name, acc, bank -> viewModel.updateUser(name, acc, bank) },
-            onChangePassword = { showChangePasswordDialog = true }
+            onChangePassword = { showChangePasswordDialog = true },
+            onLogout = {
+                coroutineScope.launch {
+                    UserPreferences.clearToken(context)
+                    TokenProvider.token = null
+                    (context as? Activity)?.recreate()
+                }
+            }
         )
     }
 
@@ -109,7 +118,8 @@ fun ProfileScreen() {
 private fun ProfileContent(
     state: ProfileState,
     onSave: (String, String, String) -> Unit,
-    onChangePassword: () -> Unit
+    onChangePassword: () -> Unit,
+    onLogout: () -> Unit
 ) {
     var fullName by remember { mutableStateOf(state.user?.name ?: "") }
     var accountNumber by remember { mutableStateOf(state.user?.accountNumber ?: "") }
@@ -197,6 +207,14 @@ private fun ProfileContent(
             Button(onClick = onChangePassword, modifier = Modifier.fillMaxWidth()) {
                 Text("Đổi mật khẩu")
             }
+
+                Spacer(Modifier.height(16.dp))
+            OutlinedButton(
+                onClick = onLogout,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                    Text("Đăng xuất")
+                }
         }
     }
 }
@@ -217,6 +235,6 @@ private fun PreviewProfileScreen() {
     )
     val state = ProfileState(user = demoUser, loading = false)
     FirstAPPTheme {
-        ProfileContent(state = state, onSave = { _, _, _ -> }, onChangePassword = {})
+        ProfileContent(state = state, onSave = { _, _, _ -> }, onChangePassword = {}, onLogout = {})
     }
 }

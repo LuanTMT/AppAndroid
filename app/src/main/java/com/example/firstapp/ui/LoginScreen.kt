@@ -34,6 +34,7 @@ fun LoginScreen(
     val scope = rememberCoroutineScope()
     var emailError by remember { mutableStateOf<String?>(null) }
     var passwordError by remember { mutableStateOf<String?>(null) }
+    var rememberLogin by remember { mutableStateOf(false) }
 
     fun isValidEmail(email: String): Boolean {
         return android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches()
@@ -41,6 +42,14 @@ fun LoginScreen(
 
     fun isValidPassword(password: String): Boolean {
         return password.length >= 8
+    }
+
+    LaunchedEffect(Unit) {
+        // Prefill email and remember flag if enabled previously
+        rememberLogin = UserPreferences.isRememberLogin(context)
+        if (rememberLogin) {
+            UserPreferences.getSavedEmail(context)?.let { email = it }
+        }
     }
 
     Column(
@@ -79,6 +88,12 @@ fun LoginScreen(
         )
         if (passwordError != null) {
             Text(passwordError!!, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+        }
+        Spacer(Modifier.height(8.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(checked = rememberLogin, onCheckedChange = { rememberLogin = it })
+            Spacer(Modifier.width(8.dp))
+            Text("Ghi nhớ đăng nhập")
         }
         Spacer(Modifier.height(24.dp))
         if (error != null) {
@@ -156,6 +171,14 @@ fun LoginScreen(
                                                 UserPreferences.saveUserId(context, finalUserId)
                                             } else {
                                                 println("Login success: userId not found in response or token payload")
+                                            }
+
+                                            // Persist remember choice and email
+                                            UserPreferences.setRememberLogin(context, rememberLogin)
+                                            if (rememberLogin) {
+                                                UserPreferences.saveEmail(context, email)
+                                            } else {
+                                                UserPreferences.clearSavedLogin(context)
                                             }
 
                                             onLoginSuccess()
