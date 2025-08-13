@@ -25,6 +25,10 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.style.TextOverflow
 import coil.compose.AsyncImage
 import com.example.firstapp.network.ApiClient
+import androidx.compose.ui.tooling.preview.Preview
+import com.example.firstapp.data.ProfileState
+import com.example.firstapp.data.User
+import com.example.firstapp.ui.theme.FirstAPPTheme
 
 @Composable
 fun ProfileScreen() {
@@ -79,92 +83,11 @@ fun ProfileScreen() {
         }
     } else {
         Log.d("ProfileScreen", "state.loading = false, user loaded? ${state.user != null}, error=${state.error}")
-        Column(modifier = Modifier.padding(16.dp)) {
-            state.user?.let { user ->
-                // Header with avatar and basic info
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    val avatarUrl = user.avatar?.let { path ->
-                        if (path.startsWith("http")) path else ApiClient.BASE_URL.trimEnd('/') + path
-                    }
-                    AsyncImage(
-                        model = avatarUrl,
-                        contentDescription = "Avatar",
-                        modifier = Modifier
-                            .size(72.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant),
-                        contentScale = ContentScale.Crop
-                    )
-                    Spacer(Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(user.name ?: "", style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(user.email ?: "", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Row(modifier = Modifier.padding(top = 6.dp)) {
-                            if (!user.position.isNullOrBlank()) AssistChip(label = { Text(user.position) }, onClick = { })
-                            if (!user.role.isNullOrBlank()) {
-                                Spacer(Modifier.width(8.dp))
-                                AssistChip(label = { Text(user.role) }, onClick = { })
-                            }
-                            if (!user.workType.isNullOrBlank()) {
-                                Spacer(Modifier.width(8.dp))
-                                AssistChip(label = { Text(user.workType) }, onClick = { })
-                            }
-                        }
-                    }
-                }
-                Spacer(Modifier.height(16.dp))
-
-                OutlinedTextField(
-                    value = fullName.ifEmpty { "" },
-                    onValueChange = { fullName = it },
-                    label = { Text("Họ tên") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = user.email ?: "",
-                    onValueChange = {},
-                    enabled = false,
-                    label = { Text("Email") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = accountNumber.ifEmpty { "" },
-                    onValueChange = { accountNumber = it },
-                    label = { Text("Số tài khoản") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-                Spacer(Modifier.height(8.dp))
-                OutlinedTextField(
-                    value = bankName.ifEmpty { "" },
-                    onValueChange = { bankName = it },
-                    label = { Text("Ngân hàng") },
-                    modifier = Modifier.fillMaxWidth()
-                )
-
-                Spacer(Modifier.height(16.dp))
-
-                Button(onClick = {
-                    viewModel.updateUser(fullName, accountNumber, bankName)
-                }, modifier = Modifier.fillMaxWidth()) {
-                    Text("Lưu thay đổi")
-                }
-
-                Spacer(Modifier.height(8.dp))
-                Button(onClick = { showChangePasswordDialog = true }, modifier = Modifier.fillMaxWidth()) {
-                    Text("Đổi mật khẩu")
-                }
-
-                Spacer(Modifier.height(8.dp))
-                Button(onClick = { /* mở picker ảnh avatar */ }, modifier = Modifier.fillMaxWidth()) {
-                    Text("Cập nhật Avatar")
-                }
-            }
-        }
+        ProfileContent(
+            state = state,
+            onSave = { name, acc, bank -> viewModel.updateUser(name, acc, bank) },
+            onChangePassword = { showChangePasswordDialog = true }
+        )
     }
 
     state.error?.let {
@@ -178,5 +101,122 @@ fun ProfileScreen() {
 
     if (showChangePasswordDialog) {
         ChangePasswordDialog(onDismiss = { showChangePasswordDialog = false }, viewModel = viewModel)
+    }
+}
+
+
+@Composable
+private fun ProfileContent(
+    state: ProfileState,
+    onSave: (String, String, String) -> Unit,
+    onChangePassword: () -> Unit
+) {
+    var fullName by remember { mutableStateOf(state.user?.name ?: "") }
+    var accountNumber by remember { mutableStateOf(state.user?.accountNumber ?: "") }
+    var bankName by remember { mutableStateOf(state.user?.bankName ?: "") }
+
+    LaunchedEffect(state.user) {
+        fullName = state.user?.name ?: ""
+        accountNumber = state.user?.accountNumber ?: ""
+        bankName = state.user?.bankName ?: ""
+    }
+
+    Column(modifier = Modifier.padding(16.dp)) {
+        state.user?.let { user ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val avatarUrl = user.avatar?.let { path ->
+                    if (path.startsWith("http")) path else ApiClient.BASE_URL.trimEnd('/') + path
+                }
+                AsyncImage(
+                    model = avatarUrl,
+                    contentDescription = "Avatar",
+                    modifier = Modifier
+                        .size(72.dp)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentScale = ContentScale.Crop
+                )
+                Spacer(Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(user.name ?: "", style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(user.email ?: "", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Row(modifier = Modifier.padding(top = 6.dp)) {
+                        if (!user.position.isNullOrBlank()) AssistChip(label = { Text(user.position) }, onClick = { })
+                        if (!user.role.isNullOrBlank()) {
+                            Spacer(Modifier.width(8.dp))
+                            AssistChip(label = { Text(user.role) }, onClick = { })
+                        }
+                        if (!user.workType.isNullOrBlank()) {
+                            Spacer(Modifier.width(8.dp))
+                            AssistChip(label = { Text(user.workType) }, onClick = { })
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.height(16.dp))
+
+            OutlinedTextField(
+                value = fullName.ifEmpty { "" },
+                onValueChange = { fullName = it },
+                label = { Text("Họ tên") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(
+                value = user.email ?: "",
+                onValueChange = {},
+                enabled = false,
+                label = { Text("Email") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(
+                value = accountNumber.ifEmpty { "" },
+                onValueChange = { accountNumber = it },
+                label = { Text("Số tài khoản") },
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(8.dp))
+            OutlinedTextField(
+                value = bankName.ifEmpty { "" },
+                onValueChange = { bankName = it },
+                label = { Text("Ngân hàng") },
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            Spacer(Modifier.height(16.dp))
+
+            Button(onClick = { onSave(fullName, accountNumber, bankName) }, modifier = Modifier.fillMaxWidth()) {
+                Text("Lưu thay đổi")
+            }
+
+            Spacer(Modifier.height(8.dp))
+            Button(onClick = onChangePassword, modifier = Modifier.fillMaxWidth()) {
+                Text("Đổi mật khẩu")
+            }
+        }
+    }
+}
+
+@Preview(showBackground = true, name = "ProfileScreen Preview")
+@Composable
+private fun PreviewProfileScreen() {
+    val demoUser = User(
+        id = "67ce987c1da2d6ccea47a44f",
+        name = "TEST",
+        email = "admin@gmail.com",
+        position = "HOD",
+        role = "admin",
+        workType = "office",
+        avatar = "/uploads/avatars/avatar-67ce987c1da2d6ccea47a44f-1744084124420.png",
+        accountNumber = "444",
+        bankName = "124636"
+    )
+    val state = ProfileState(user = demoUser, loading = false)
+    FirstAPPTheme {
+        ProfileContent(state = state, onSave = { _, _, _ -> }, onChangePassword = {})
     }
 }
