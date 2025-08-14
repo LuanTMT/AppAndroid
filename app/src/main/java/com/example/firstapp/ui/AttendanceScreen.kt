@@ -372,13 +372,8 @@ fun AttendanceScreen(
                     painter = painterResource(id = R.drawable.topbar),
                     contentDescription = null,
                     modifier = Modifier
-                        .fillMaxWidth().height(50.dp),
+                        .fillMaxWidth().height(86.dp),
                     contentScale = ContentScale.Fit
-                )
-                Box(
-                    modifier = Modifier
-                        .matchParentSize()
-                        .background(Color.Black.copy(alpha = 0.2f))
                 )
             }
         },
