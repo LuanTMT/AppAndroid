@@ -423,7 +423,7 @@ fun AttendanceScreen(
                         statusColor = if (attendanceData["checkIn"] != null) Color.Green else null,
                         imagePath = (attendanceData["checkIn"] as? Map<*, *>)?.get("image") as? String,
                         buttonText = if (attendanceData["checkIn"] != null) "Cập nhật giờ vào" else "Chấm công vào",
-                        buttonColor = Color(0xFFFFA726),
+                         buttonColor = Color(0xFF476f95),
                         onButtonClick = {
                             clockType = if (attendanceData["checkIn"] != null) "update_check_in" else "checkIn"
                             showCameraModal = true
@@ -529,204 +529,133 @@ fun CameraScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     var imageCapture: ImageCapture? by remember { mutableStateOf(null) }
-    val yellowPrimary = MaterialTheme.colorScheme.primary
-    val yellowDark = MaterialTheme.colorScheme.onPrimary
+    val primary = MaterialTheme.colorScheme.primary
+    val onPrimary = MaterialTheme.colorScheme.onPrimary
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        "Chụp ảnh chấm công",
-                        style = MaterialTheme.typography.titleLarge,
-                        modifier = Modifier.fillMaxWidth(),
-                        color = yellowDark
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = onCancel) {
-                        Text("❌", color = yellowDark)
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Fullscreen camera preview
+        AndroidView(
+            factory = { ctx -> PreviewView(ctx).apply { scaleType = PreviewView.ScaleType.FILL_CENTER } },
+            modifier = Modifier.fillMaxSize(),
+            update = { previewView ->
+                val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
+                cameraProviderFuture.addListener({
+                    val cameraProvider = cameraProviderFuture.get()
+                    val preview = Preview.Builder().build()
+                    val imageCaptureBuilder = ImageCapture.Builder()
+                    imageCapture = imageCaptureBuilder.build()
+                    val cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
+
+                    try {
+                        cameraProvider.unbindAll()
+                        cameraProvider.bindToLifecycle(
+                            lifecycleOwner,
+                            cameraSelector,
+                            preview,
+                            imageCapture
+                        )
+                        preview.setSurfaceProvider(previewView.surfaceProvider)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
                     }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = yellowPrimary
-                )
-            )
-        },
-        containerColor = MaterialTheme.colorScheme.background
-    ) { padding ->
+                }, ContextCompat.getMainExecutor(context))
+            }
+        )
+
+        // Slim custom top bar overlay (smaller than default TopAppBar)
         Box(
             modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
-            contentAlignment = Alignment.Center
+                .align(Alignment.TopCenter)
+                .fillMaxWidth()
+                .height(40.dp)
+                .background(primary)
         ) {
-            // Camera Preview
-            AndroidView(
-                factory = { ctx ->
-                    PreviewView(ctx).apply {
-                        this.scaleType = PreviewView.ScaleType.FILL_CENTER
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onCancel) { Text("❌", color = onPrimary) }
+                Spacer(Modifier.width(4.dp))
+                Text("Chụp ảnh chấm công", color = onPrimary, style = MaterialTheme.typography.titleMedium)
+            }
+        }
+
+        // Upload overlay
+        if (isUploading) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(color = Color.White, modifier = Modifier.size(48.dp))
+                    Spacer(modifier = Modifier.height(48.dp))
+                    Text("Đang gửi ảnh...", color = Color.White, style = MaterialTheme.typography.titleMedium)
+                }
+            }
+        }
+
+        // Error overlay
+        if (uploadError != null) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.8f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(32.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color.White)
+                ) {
+                    Column(modifier = Modifier.padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("❌ Lỗi", style = MaterialTheme.typography.titleLarge, color = Color.Red)
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(uploadError, style = MaterialTheme.typography.bodyMedium, textAlign = TextAlign.Center, color = Color.Black)
+                        Spacer(modifier = Modifier.height(24.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                            Button(onClick = { onCancel() }, colors = ButtonDefaults.buttonColors(containerColor = Color.Gray)) { Text("Hủy", color = Color.White) }
+                            Button(onClick = { onCancel() }, colors = ButtonDefaults.buttonColors(containerColor = primary)) { Text("Thử lại", color = onPrimary) }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Capture button bottom-center
+        if (!isUploading && uploadError == null) {
+            Button(
+                onClick = {
+                    imageCapture?.let { capture ->
+                        val photoFile = File(
+                            context.getExternalFilesDir(null),
+                            "attendance_${System.currentTimeMillis()}.jpg"
+                        )
+                        val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
+                        capture.takePicture(
+                            outputOptions,
+                            ContextCompat.getMainExecutor(context),
+                            object : ImageCapture.OnImageSavedCallback {
+                                override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
+                                    onImageCaptured(photoFile.absolutePath)
+                                }
+                                override fun onError(exception: ImageCaptureException) {
+                                    exception.printStackTrace()
+                                }
+                            }
+                        )
                     }
                 },
-                modifier = Modifier.fillMaxSize(),
-                update = { previewView ->
-                    val cameraProviderFuture = ProcessCameraProvider.getInstance(context)
-                    cameraProviderFuture.addListener({
-                        val cameraProvider = cameraProviderFuture.get()
-                        val preview = Preview.Builder().build()
-                        val imageCaptureBuilder = ImageCapture.Builder()
-                        imageCapture = imageCaptureBuilder.build()
-                        val cameraSelector = CameraSelector.DEFAULT_FRONT_CAMERA
-
-                        try {
-                            cameraProvider.unbindAll()
-                            cameraProvider.bindToLifecycle(
-                                lifecycleOwner,
-                                cameraSelector,
-                                preview,
-                                imageCapture
-                            )
-                            preview.setSurfaceProvider(previewView.surfaceProvider)
-                        } catch (e: Exception) {
-                            e.printStackTrace()
-                        }
-                    }, ContextCompat.getMainExecutor(context))
-                }
-            )
-
-            // Overlay hiển thị trạng thái upload
-            if (isUploading) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.7f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        CircularProgressIndicator(
-                            color = Color.White,
-                            modifier = Modifier.size(48.dp)
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Text(
-                            "Đang gửi ảnh...",
-                            color = Color.White,
-                            style = MaterialTheme.typography.titleMedium
-                        )
-                    }
-                }
-            }
-
-            // Hiển thị lỗi upload
-            if (uploadError != null) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(Color.Black.copy(alpha = 0.8f)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(32.dp),
-                        colors = CardDefaults.cardColors(
-                            containerColor = Color.White
-                        )
-                    ) {
-                        Column(
-                            modifier = Modifier.padding(24.dp),
-                            horizontalAlignment = Alignment.CenterHorizontally
-                        ) {
-                            Text(
-                                "❌ Lỗi",
-                                style = MaterialTheme.typography.titleLarge,
-                                color = Color.Red
-                            )
-                            Spacer(modifier = Modifier.height(16.dp))
-                            Text(
-                                uploadError!!,
-                                style = MaterialTheme.typography.bodyMedium,
-                                textAlign = TextAlign.Center,
-                                color = Color.Black
-                            )
-                            Spacer(modifier = Modifier.height(24.dp))
-                            Row(
-                                horizontalArrangement = Arrangement.spacedBy(16.dp)
-                            ) {
-                                Button(
-                                    onClick = {
-                                        // Reset error và thử lại
-                                        onCancel()
-                                    },
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = Color.Gray
-                                    )
-                                ) {
-                                    Text("Hủy", color = Color.White)
-                                }
-                                Button(
-                                    onClick = {
-                                        // Có thể thêm logic thử lại ở đây
-                                        onCancel()
-                                    },
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = yellowPrimary
-                                    )
-                                ) {
-                                    Text("Thử lại", color = yellowDark)
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Capture Button (chỉ hiện khi không đang upload và không có lỗi)
-            if (!isUploading && uploadError == null) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(16.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Button(
-                        onClick = {
-                            imageCapture?.let { capture ->
-                                val photoFile = File(
-                                    context.getExternalFilesDir(null),
-                                    "attendance_${System.currentTimeMillis()}.jpg"
-                                )
-
-                                val outputOptions = ImageCapture.OutputFileOptions.Builder(photoFile).build()
-                                capture.takePicture(
-                                    outputOptions,
-                                    ContextCompat.getMainExecutor(context),
-                                    object : ImageCapture.OnImageSavedCallback {
-                                        override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
-                                            onImageCaptured(photoFile.absolutePath)
-                                        }
-
-                                        override fun onError(exception: ImageCaptureException) {
-                                            exception.printStackTrace()
-                                        }
-                                    }
-                                )
-                            }
-                        },
-                        modifier = Modifier
-                            .size(80.dp),
-                        shape = RoundedCornerShape(40.dp),
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = yellowPrimary,
-                            contentColor = yellowDark
-                        )
-                    ) {
-                        Text("📸", style = MaterialTheme.typography.titleLarge, color = yellowDark)
-                    }
-                }
-            }
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 24.dp)
+                    .size(80.dp),
+                shape = RoundedCornerShape(40.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = primary, contentColor = onPrimary)
+            ) { Text("📸", style = MaterialTheme.typography.titleLarge, color = onPrimary) }
         }
     }
 }

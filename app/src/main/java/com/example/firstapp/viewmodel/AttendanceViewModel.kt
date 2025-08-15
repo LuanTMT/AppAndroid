@@ -54,9 +54,7 @@ class AttendanceViewModel : ViewModel() {
                     type = AttendanceType.CHECK_IN
                 )
 
-                // Gửi dữ liệu lên server
-                val result = ApiClient.api.submitAttendance(attendance)
-                
+                ApiClient.api.submitAttendance(attendance)
                 _attendanceState.value = AttendanceState.Success("Chấm công vào thành công!")
                 
             } catch (e: Exception) {
@@ -89,9 +87,7 @@ class AttendanceViewModel : ViewModel() {
                     type = AttendanceType.CHECK_OUT
                 )
 
-                // Gửi dữ liệu lên server
-                val result = ApiClient.api.submitAttendance(attendance)
-                
+                ApiClient.api.submitAttendance(attendance)
                 _attendanceState.value = AttendanceState.Success("Chấm công ra thành công!")
                 
             } catch (e: Exception) {
