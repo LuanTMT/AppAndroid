@@ -15,6 +15,7 @@ import androidx.camera.view.PreviewView
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -27,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.res.painterResource
@@ -52,6 +54,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.alpha
 import com.example.firstapp.ui.theme.FirstAPPTheme
 import androidx.compose.ui.tooling.preview.Preview as Review
 import okhttp3.MediaType.Companion.toMediaTypeOrNull
@@ -393,15 +396,33 @@ fun AttendanceScreen(
         return
     }
 
-    // State theo dõi scroll
+    // State theo dõi scroll (có ngưỡng để tránh nháy)
     val listState = rememberLazyListState()
     var lastScrollOffset by remember { mutableStateOf(0) }
     var showChamCongBar by remember { mutableStateOf(true) }
-    LaunchedEffect(listState.firstVisibleItemScrollOffset) {
-        val currentOffset = listState.firstVisibleItemScrollOffset
-        showChamCongBar = currentOffset < lastScrollOffset || currentOffset == 0
-        lastScrollOffset = currentOffset
+    val density = LocalDensity.current
+    val thresholdPx = with(density) { 16.dp.toPx().toInt() }
+    var accumulatedDelta by remember { mutableStateOf(0) }
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.firstVisibleItemScrollOffset }
+            .collect { currentOffset ->
+                val delta = currentOffset - lastScrollOffset
+                lastScrollOffset = currentOffset
+                accumulatedDelta += delta
+                if (accumulatedDelta > thresholdPx && showChamCongBar) {
+                    showChamCongBar = false
+                    accumulatedDelta = 0
+                } else if (accumulatedDelta < -thresholdPx && !showChamCongBar) {
+                    showChamCongBar = true
+                    accumulatedDelta = 0
+                }
+                if (currentOffset == 0 && !showChamCongBar) {
+                    showChamCongBar = true
+                    accumulatedDelta = 0
+                }
+            }
     }
+    val topBarAlpha by animateFloatAsState(targetValue = if (showChamCongBar) 1f else 0f, label = "topbar-alpha")
 
     Scaffold(
         topBar = {
@@ -426,33 +447,28 @@ fun AttendanceScreen(
             modifier = Modifier.fillMaxSize()
         ) {
             Spacer(modifier = Modifier.height(86.dp))
-            AnimatedVisibility(
-                visible = showChamCongBar,
-                enter = fadeIn(),
-                exit = fadeOut()
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(48.dp),
             ) {
-                Surface(
+                Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp),
+                        .fillMaxSize()
+                        .alpha(topBarAlpha),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = "Chấm công",
-                            style = MaterialTheme.typography.titleLarge,
-                            color = Color.White
-                        )
-                    }
+                    Text(
+                        text = "Chấm công",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = Color.White
+                    )
                 }
             }
             LazyColumn(
                 state = listState,
                 modifier = Modifier
                     .weight(1f)
-                    .padding(padding)
                     .padding(16.dp),
                 verticalArrangement = Arrangement.spacedBy(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
@@ -465,7 +481,7 @@ fun AttendanceScreen(
                     AttendanceCard(
                         title = "Giờ Vào",
                         time = formatTime(checkInTimeDate ?: currentTime),
-                        address = checkInAddr ?: "",
+                        address = checkInAddr ?: address,
                         status = null,
                         statusColor = null,
                         imagePath = checkInImage,
@@ -487,7 +503,7 @@ fun AttendanceScreen(
                     AttendanceCard(
                         title = "Giờ Ra",
                         time = formatTime(checkOutTimeDate ?: currentTime),
-                        address = checkOutAddr ?: "",
+                        address = checkOutAddr ?: address,
                         status = null,
                         statusColor = null,
                         imagePath = checkOutImage,
