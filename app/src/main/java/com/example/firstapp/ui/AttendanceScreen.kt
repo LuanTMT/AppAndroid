@@ -34,6 +34,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import coil.compose.rememberImagePainter
+import android.graphics.BitmapFactory
+import android.graphics.Bitmap
+import android.graphics.Matrix
+import androidx.compose.ui.graphics.asImageBitmap
+import android.util.Base64
 import com.example.firstapp.R
 import com.example.firstapp.viewmodel.AttendanceViewModel
 import com.example.firstapp.viewmodel.AttendanceState
@@ -55,30 +60,7 @@ import okhttp3.RequestBody.Companion.asRequestBody
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import retrofit2.http.Multipart
-import retrofit2.http.POST
-import retrofit2.http.Part
-import retrofit2.Response
-import retrofit2.Retrofit
-import retrofit2.converter.gson.GsonConverterFactory
 import android.util.Log
-
-interface AttendanceApi {
-    @Multipart
-    @POST("api-test")
-    suspend fun uploadAttendanceImage(
-        @Part image: MultipartBody.Part
-    ): Response<Any> // hoặc Response<YourResponseModel>
-}
-
-object ApiClient {
-    val retrofit: Retrofit = Retrofit.Builder()
-        .baseUrl("http://192.168.200.196:5021/")
-        .addConverterFactory(GsonConverterFactory.create())
-        .build()
-
-    val attendanceApi: AttendanceApi = retrofit.create(AttendanceApi::class.java)
-}
 
 // Định nghĩa allowedLocations (có thể lấy từ server hoặc hardcode)
 data class AllowedLocation(val name: String, val latitude: Double, val longitude: Double, val radius: Int)
@@ -135,6 +117,76 @@ fun formatTime(date: Date?): String {
     return sdf.format(date)
 }
 
+fun parseServerTimeToDate(iso: String?): Date? {
+    if (iso.isNullOrEmpty()) return null
+    val patterns = listOf(
+        "yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",
+        "yyyy-MM-dd'T'HH:mm:ss'Z'",
+        "yyyy-MM-dd'T'HH:mm:ss.SSSXXX",
+        "yyyy-MM-dd'T'HH:mm:ssXXX"
+    )
+    for (p in patterns) {
+        try {
+            val sdf = SimpleDateFormat(p, Locale.getDefault())
+            sdf.timeZone = TimeZone.getTimeZone("UTC")
+            val d = sdf.parse(iso)
+            android.util.Log.d("AttendanceScreen", "parse time ok: pattern=$p -> $d from $iso")
+            return d
+        } catch (_: Exception) { }
+    }
+    android.util.Log.w("AttendanceScreen", "parse time failed for: $iso")
+    return null
+}
+
+// Chuyển chuỗi ảnh trả về từ server thành URL hiển thị được
+fun toDisplayImage(src: String?): String? {
+    if (src.isNullOrEmpty()) return null
+    return if (src.startsWith("http") || src.startsWith("data:")) src
+    else "data:image/jpeg;base64,$src"
+}
+
+fun normalizeType(type: String?): String? {
+    if (type == null) return null
+    val t = type.lowercase(Locale.getDefault())
+    return when (t) {
+        "check_in", "checkin", "check-in", "in" -> "check_in"
+        "check_out", "checkout", "check-out", "out" -> "check_out"
+        else -> t
+    }
+}
+
+fun decodeDataUriToBitmap(dataUri: String, maxDim: Int = 1024): Bitmap? {
+    return try {
+        val base64Part = dataUri.substringAfter(",", missingDelimiterValue = "")
+        if (base64Part.isEmpty()) return null
+        val bytes = Base64.decode(base64Part, Base64.DEFAULT)
+        // bounds first
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        var inSampleSize = 1
+        while ((bounds.outWidth / inSampleSize) > maxDim || (bounds.outHeight / inSampleSize) > maxDim) {
+            inSampleSize *= 2
+        }
+        val opts = BitmapFactory.Options().apply { this.inSampleSize = inSampleSize }
+        val bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
+        // Attempt to detect EXIF-like rotation markers in data URI is unreliable.
+        // If server preserved orientation, we may need to rotate based on width/height heuristic.
+        val rotated = if (bmp.width > bmp.height && dataUri.contains("orientation=right", ignoreCase = true)) {
+            rotateBitmap(bmp, 90)
+        } else bmp
+        rotated
+    } catch (e: Exception) {
+        android.util.Log.w("AttendanceScreen", "decodeDataUriToBitmap failed: ${e.message}")
+        null
+    }
+}
+
+fun rotateBitmap(src: Bitmap, degrees: Int): Bitmap {
+    val m = Matrix()
+    m.postRotate(degrees.toFloat())
+    return Bitmap.createBitmap(src, 0, 0, src.width, src.height, m, true)
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AttendanceScreen(
@@ -146,6 +198,8 @@ fun AttendanceScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val attendanceState by viewModel.attendanceState.collectAsState()
     val imagePath by viewModel.imagePath.collectAsState()
+    val recIn by viewModel.checkInRecord.collectAsState()
+    val recOut by viewModel.checkOutRecord.collectAsState()
 
     // State quản lý quyền
     var hasCameraPermission by remember { mutableStateOf(false) }
@@ -161,14 +215,7 @@ fun AttendanceScreen(
     var distance by remember { mutableStateOf<Double?>(null) }
 
     // State dữ liệu chấm công
-    var attendanceData by remember {
-        mutableStateOf(
-            mapOf(
-                "checkIn" to null,
-                "checkOut" to null
-            )
-        )
-    }
+    val today by viewModel.today.collectAsState()
     var showCameraModal by remember { mutableStateOf(false) }
     var clockType by remember { mutableStateOf<String?>(null) } // "checkIn"/"checkOut"/"update_check_in"/"update_check_out"
     var currentTime by remember { mutableStateOf(Date()) }
@@ -199,6 +246,30 @@ fun AttendanceScreen(
         prevShowCameraModal = showCameraModal
     }
 
+    // Phản ứng theo trạng thái submit từ ViewModel để điều khiển UI
+    LaunchedEffect(attendanceState) {
+        when (val s = attendanceState) {
+            is AttendanceState.Loading -> {
+                isUploading = true
+                uploadError = null
+                uploadSuccess = false
+            }
+            is AttendanceState.Success -> {
+                isUploading = false
+                uploadError = null
+                uploadSuccess = true
+                showCameraModal = false
+                viewModel.fetchToday()
+            }
+            is AttendanceState.Error -> {
+                isUploading = false
+                uploadSuccess = false
+                uploadError = s.message
+            }
+            else -> {}
+        }
+    }
+
     // Hiển thị CameraScreen khi showCameraModal = true
     if (showCameraModal) {
         CameraScreen(
@@ -207,42 +278,13 @@ fun AttendanceScreen(
                 isUploading = true
                 uploadError = null
                 uploadSuccess = false
-
-                // Gửi ảnh lên server
-                CoroutineScope(Dispatchers.IO).launch {
-                    try {
-                        Log.d("AttendanceScreen", "Bắt đầu upload ảnh: $path")
-                        val file = File(path)
-                        if (!file.exists()) {
-                            Log.e("AttendanceScreen", "File không tồn tại: $path")
-                            uploadError = "File ảnh không tồn tại"
-                            isUploading = false
-                            return@launch
-                        }
-
-                        val requestFile = file.asRequestBody("image/jpeg".toMediaTypeOrNull())
-                        val body = MultipartBody.Part.createFormData("image", file.name, requestFile)
-                        val response = ApiClient.attendanceApi.uploadAttendanceImage(body)
-
-                        if (response.isSuccessful) {
-                            Log.d("AttendanceScreen", "Upload thành công: ${response.code()}")
-                            uploadSuccess = true
-                            uploadError = null
-                            // Chỉ thoát khỏi camera khi thành công
-                            showCameraModal = false
-                        } else {
-                            Log.e("AttendanceScreen", "Upload thất bại: ${response.code()} - ${response.message()}")
-                            uploadError = "Upload thất bại: ${response.message()}"
-                            uploadSuccess = false
-                        }
-                        isUploading = false
-                    } catch (e: Exception) {
-                        Log.e("AttendanceScreen", "Lỗi upload: ${e.message}", e)
-                        uploadError = "Lỗi upload: ${e.message}"
-                        uploadSuccess = false
-                        isUploading = false
-                    }
+                // Lưu path vào VM rồi submit qua API JSON
+                viewModel.updateImagePath(path)
+                val submitType = when (clockType) {
+                    "checkIn", "update_check_in" -> "check_in"
+                    else -> "check_out"
                 }
+                viewModel.submit(submitType, address)
             },
             onCancel = {
                 // Reset state khi hủy
@@ -295,6 +337,7 @@ fun AttendanceScreen(
                 if (location != null) {
                     currentLocation = location
                     address = getAddressFromLocation(context, location)
+                    viewModel.updateLocation(location)
                     // Kiểm tra hợp lệ
                     val allowed = allowedLocations.firstOrNull {
                         calculateDistance(location.latitude, location.longitude, it.latitude, it.longitude) <= it.radius
@@ -415,17 +458,21 @@ fun AttendanceScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 item {
+                    android.util.Log.d("AttendanceScreen", "Bind Giờ Vào: ts=${recIn?.timestamp}, imgLen=${recIn?.image?.length ?: 0}")
+                    val checkInImage = toDisplayImage(recIn?.image)
+                    val checkInAddr = recIn?.location
+                    val checkInTimeDate = parseServerTimeToDate(recIn?.timestamp)
                     AttendanceCard(
                         title = "Giờ Vào",
-                        time = formatTime(currentTime),
-                        address = address,
-                        status = if (attendanceData["checkIn"] != null) "Đã check in" else null,
-                        statusColor = if (attendanceData["checkIn"] != null) Color.Green else null,
-                        imagePath = (attendanceData["checkIn"] as? Map<*, *>)?.get("image") as? String,
-                        buttonText = if (attendanceData["checkIn"] != null) "Cập nhật giờ vào" else "Chấm công vào",
+                        time = formatTime(checkInTimeDate ?: currentTime),
+                        address = checkInAddr ?: "",
+                        status = null,
+                        statusColor = null,
+                        imagePath = checkInImage,
+                        buttonText = if (recIn?._id != null) "Cập nhật giờ vào" else "Chấm công vào",
                          buttonColor = Color(0xFF476f95),
                         onButtonClick = {
-                            clockType = if (attendanceData["checkIn"] != null) "update_check_in" else "checkIn"
+                            clockType = if (recIn?._id != null) "update_check_in" else "checkIn"
                             showCameraModal = true
                         },
                         isValidLocation = isValidLocation,
@@ -433,17 +480,21 @@ fun AttendanceScreen(
                     )
                 }
                 item {
+                    android.util.Log.d("AttendanceScreen", "Bind Giờ Ra: ts=${recOut?.timestamp}, imgLen=${recOut?.image?.length ?: 0}")
+                    val checkOutImage = toDisplayImage(recOut?.image)
+                    val checkOutAddr = recOut?.location
+                    val checkOutTimeDate = parseServerTimeToDate(recOut?.timestamp)
                     AttendanceCard(
                         title = "Giờ Ra",
-                        time = formatTime(currentTime),
-                        address = address,
-                        status = if (attendanceData["checkOut"] != null) "Đã check out" else null,
-                        statusColor = if (attendanceData["checkOut"] != null) Color.Green else null,
-                        imagePath = (attendanceData["checkOut"] as? Map<*, *>)?.get("image") as? String,
-                        buttonText = if (attendanceData["checkOut"] != null) "Cập nhật giờ ra" else "Chấm công ra",
+                        time = formatTime(checkOutTimeDate ?: currentTime),
+                        address = checkOutAddr ?: "",
+                        status = null,
+                        statusColor = null,
+                        imagePath = checkOutImage,
+                        buttonText = if (recOut?._id != null) "Cập nhật giờ ra" else "Chấm công ra",
                         buttonColor = Color(0xFF7C4DFF),
                         onButtonClick = {
-                            clockType = if (attendanceData["checkOut"] != null) "update_check_out" else "checkOut"
+                            clockType = if (recOut?._id != null) "update_check_out" else "checkOut"
                             showCameraModal = true
                         },
                         isValidLocation = isValidLocation,
@@ -453,7 +504,8 @@ fun AttendanceScreen(
             }
         }
     }
-    // TODO: Thêm CameraModal, fetchAttendanceData, toast, cập nhật dữ liệu sau khi chấm công
+    // Load dữ liệu hôm nay khi vào màn hình
+    LaunchedEffect(Unit) { viewModel.fetchToday() }
 }
 
 @Composable
@@ -491,14 +543,29 @@ fun AttendanceCard(
             }
             if (imagePath != null) {
                 Spacer(Modifier.height(8.dp))
-                Image(
-                    painter = rememberImagePainter(imagePath),
-                    contentDescription = null,
-                    modifier = Modifier
-                        .size(120.dp)
-                        .clip(RoundedCornerShape(12.dp)),
-                    contentScale = ContentScale.Crop
-                )
+                val isDataUri = imagePath.startsWith("data:")
+                if (isDataUri) {
+                    val bmp = remember(imagePath) { decodeDataUriToBitmap(imagePath, maxDim = 512) }
+                    if (bmp != null) {
+                        Image(
+                            bitmap = bmp.asImageBitmap(),
+                            contentDescription = null,
+                            modifier = Modifier
+                                .size(120.dp)
+                                .clip(RoundedCornerShape(12.dp)),
+                            contentScale = ContentScale.Crop
+                        )
+                    }
+                } else {
+                    Image(
+                        painter = rememberImagePainter(imagePath),
+                        contentDescription = null,
+                        modifier = Modifier
+                            .size(120.dp)
+                            .clip(RoundedCornerShape(12.dp)),
+                        contentScale = ContentScale.Crop
+                    )
+                }
             }
             Spacer(Modifier.height(8.dp))
             if (!isValidLocation) {

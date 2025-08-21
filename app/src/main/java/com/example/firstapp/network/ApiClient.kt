@@ -21,7 +21,12 @@ private class AuthInterceptor : Interceptor {
         val request = requestBuilder.build()
         Log.d("AuthInterceptor", "Proceeding request: ${request.method} ${request.url}")
         val response = chain.proceed(request)
-        Log.d("AuthInterceptor", "Response code: ${response.code}")
+        try {
+            val peek = response.peekBody(1024 * 1024)
+            Log.d("AuthInterceptor", "Response body: ${peek.string()}")
+        } catch (e: Exception) {
+            Log.w("AuthInterceptor", "peekBody failed: ${e.message}")
+        }
         return response
     }
 }
